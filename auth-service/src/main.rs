@@ -20,3 +20,15 @@ async fn main() {
 async fn hello_handler() -> Html<&'static str> {
     Html("<h1>Hello, World! You made it so far and you will get even further!</h1>")
 }
+
+
+use auth_service::Application;
+
+#[tokio::main]
+async fn main() {
+    let app = Application::build("0.0.0.0:3000")
+        .await
+        .expect("Failed to build app");
+
+    app.run().await.expect("Failed to run app");
+}
