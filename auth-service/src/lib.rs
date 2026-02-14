@@ -1,6 +1,7 @@
 use axum::{Router, serve::Serve};
-use axum::{response::Html, routing::get};
+// use axum::{response::Html, routing::get};
 use tokio::net::TcpListener;
+use tower_http::services::ServeDir;
 use std::error::Error;
 
 // This struct encapsulates our application-related logic.
@@ -13,23 +14,27 @@ pub struct Application {
 
 impl Application {
 
-    async fn hello_handler() -> Html<&'static str> {
-        Html("<h1>Hello, World! You made it so far and you will get even further!</h1>")
-    } 
-
     pub async fn build(address: &str) -> Result<Self, Box<dyn Error>> {
         // Move the Router definition from `main.rs` to here.
         // Also, remove the `hello` route.
         // We don't need it at this point!
+        let assets_dir = ServeDir::new("assets");
         let router =  Router::new()
-        .route("/", get(crate::hello_handler));
+        .fallback_service(assets_dir);
+    // TODO ask: async before || and after || ? Is there difference ?
+        // .route("/", get(  || async {
+        //     Html("<h1>Hello, World! You made it so far and you will get even further!</h1>")
+        // }));
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
         let server = axum::serve(listener, router);
 
         // Create a new Application instance and return it
-        todo!()
+        Ok(Application {
+            server: server,
+            address: address,
+        })
     }
 
 
