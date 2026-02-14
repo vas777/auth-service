@@ -1,4 +1,3 @@
-
 use crate::helpers::TestApp;
 #[tokio::test]
 async fn post_logout_works() {
