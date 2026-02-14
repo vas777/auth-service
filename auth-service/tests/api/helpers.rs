@@ -14,14 +14,17 @@ impl TestApp {
         let address = format!("http://{}", app.address.clone());
 
         // Run the auth service in a separate async task
-        // to avoid blocking the main test thread. 
+        // to avoid blocking the main test thread.
         #[allow(clippy::let_underscore_future)]
         let _ = tokio::spawn(app.run());
 
-        let http_client = todo!(); // Create a Reqwest http client instance
+        let http_client = reqwest::Client::new(); // Create a Reqwest http client instance
 
         // Create new `TestApp` instance and return it
-        todo!()
+        TestApp {
+            address: address,
+            http_client: http_client,
+        }
     }
 
     pub async fn get_root(&self) -> reqwest::Response {
@@ -32,5 +35,43 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
-    // TODO: Implement helper functions for all other routes (signup, login, logout, verify-2fa, and verify-token)
+    pub async fn post_signup(&self) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/signup", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn post_login(&self) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/login", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn post_logout(&self) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/logout", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn post_verify_2fa(&self) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/verify-2fa", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn post_verify_token(&self) -> reqwest::Response {
+        self.http_client
+            .post(&format!("{}/verify-token", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
 }

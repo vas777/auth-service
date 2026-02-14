@@ -1,8 +1,9 @@
-use axum::{Router, serve::Serve};
-// use axum::{response::Html, routing::get};
+use axum::response::IntoResponse;
+use axum::{http::StatusCode, response::Html, routing::get, routing::post};
+use axum::{serve::Serve, Router};
+use std::error::Error;
 use tokio::net::TcpListener;
 use tower_http::services::ServeDir;
-use std::error::Error;
 
 // This struct encapsulates our application-related logic.
 pub struct Application {
@@ -13,15 +14,22 @@ pub struct Application {
 }
 
 impl Application {
-
     pub async fn build(address: &str) -> Result<Self, Box<dyn Error>> {
         // Move the Router definition from `main.rs` to here.
         // Also, remove the `hello` route.
         // We don't need it at this point!
-        let assets_dir = ServeDir::new("assets");
-        let router =  Router::new()
-        .fallback_service(assets_dir);
-    // TODO ask: async before || and after || ? Is there difference ?
+        let asset_dir =
+            ServeDir::new("assets").not_found_service(ServeDir::new("assets/index.html"));
+        let router = Router::new()
+            .fallback_service(asset_dir)
+            // TODO what about root / ?
+            .route("/signup", post(signup))
+            .route("/login", post(login))
+            .route("/logout", post(logout))
+            .route("/verify-2fa", post(verify_2fa)) // Example route
+            .route("/verify-token", post(verify_token)); // Example route
+
+        // TODO ask: async before || and after || ? Is there difference ?
         // .route("/", get(  || async {
         //     Html("<h1>Hello, World! You made it so far and you will get even further!</h1>")
         // }));
@@ -37,10 +45,28 @@ impl Application {
         })
     }
 
-
-
     pub async fn run(self) -> Result<(), std::io::Error> {
         println!("listening on {}", &self.address);
         self.server.await
     }
+}
+
+async fn signup() -> impl IntoResponse {
+    StatusCode::OK.into_response()
+}
+
+async fn login() -> impl IntoResponse {
+    StatusCode::OK.into_response()
+}
+
+async fn logout() -> impl IntoResponse {
+    StatusCode::OK.into_response()
+}
+
+async fn verify_2fa() -> impl IntoResponse {
+    StatusCode::OK.into_response()
+}
+
+async fn verify_token() -> impl IntoResponse {
+    StatusCode::OK.into_response()
 }
