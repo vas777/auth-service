@@ -11,7 +11,7 @@ pub enum UserStoreError {
 }
 
 #[derive(Default)]
-struct HashmapUserStore {
+pub struct HashmapUserStore {
     users: HashMap<String, User>,
 }
 

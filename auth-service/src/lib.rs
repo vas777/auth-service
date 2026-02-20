@@ -1,3 +1,4 @@
+use crate::app_state::AppState;
 use crate::routes::{login, logout, signup, verify_2fa, verify_token};
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, response::Html, routing::get, routing::post};
@@ -6,6 +7,7 @@ use std::error::Error;
 use tokio::net::TcpListener;
 use tower_http::services::ServeDir;
 
+pub mod app_state;
 pub mod domain;
 pub mod routes;
 pub mod services;
@@ -19,7 +21,7 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(address: &str) -> Result<Self, Box<dyn Error>> {
+    pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
         // Move the Router definition from `main.rs` to here.
         // Also, remove the `hello` route.
         // We don't need it at this point!
@@ -28,11 +30,13 @@ impl Application {
         let router = Router::new()
             .fallback_service(asset_dir)
             // TODO what about root / ?
+            // nesting on root ins not supported
             .route("/signup", post(signup))
             .route("/login", post(login))
             .route("/logout", post(logout))
             .route("/verify-2fa", post(verify_2fa)) // Example route
-            .route("/verify-token", post(verify_token)); // Example route
+            .route("/verify-token", post(verify_token))
+            .with_state(app_state);
 
         // TODO ask: async before || and after || ? Is there difference ?
         // .route("/", get(  || async {

@@ -33,3 +33,13 @@ docker compose up
 ```
 
 visit http://localhost:8000 and http://localhost:3000
+
+## Test with curl
+
+curl  -v --location --request POST 'localhost:3000/signup' \
+--header 'Content-Type: application/json' \
+--data '{
+    "email": "vas@mail",
+    "password": "pass",
+    "requires2FA": true
+}'
