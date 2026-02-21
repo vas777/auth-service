@@ -24,7 +24,7 @@ pub async fn signup(
 
     // for now I only retrun UserAlreadyExists from add_user
     // TODO: instead of using unwrap, early return AuthAPIError::UnexpectedError if add_user() fails.
-    if user_store.add_user(user).is_err() {
+    if user_store.add_user(user).await.is_err() {
         return Err(AuthAPIError::UserAlreadyExists);
     };
 
