@@ -1,8 +1,8 @@
 mod data_store;
+mod email;
 mod error;
 mod user;
-mod email;
 pub use data_store::*;
+pub use email::*;
 pub use error::*;
 pub use user::*;
-pub use email::*;

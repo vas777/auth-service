@@ -1,14 +1,15 @@
 use validator::ValidateEmail;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Email(String);
 
 impl Email {
-    fn parse(&self)-> Result<(),String> {
-        if !self.0.validate_email() {
-            return Err(format!("Not valid email {}", self.0))
+    pub fn parse(email: String) -> Result<Email, String> {
+        if email.validate_email() {
+            Ok(Email(email))
+        } else {
+            Err(format!("Not valid email: `{}`", email))
         }
-        Ok(())
     }
 }
 
@@ -19,18 +20,17 @@ impl AsRef<str> for Email {
 }
 
 #[cfg(test)]
-mod tests {
+mod test{
+
     use super::Email;
-#[test]
-fn check_email() {
-    let email = Email("vas@gmial.com".to_owned());
-    assert_eq!(email.parse(), Ok(()));
-    println!("{email:?}");
-    let email = Email("vasgmial.com".to_owned());
-    assert_eq!(email.parse(), Err("Not valid email vasgmial.com".to_owned()));
-    let email = Email("vasgmial.com".to_owned());
-    assert_eq!(email.parse(), Err("Not valid email vasgmial.com".to_owned()));
-    // let email = Email("vasgmial.com".to_owned());
-    // assert_eq!(email.parse(), Ok(()));
-}
+    #[test]
+    fn check_email() {
+        assert!(Email::parse("vas@gmial.com".to_owned()).is_ok());
+        assert!(Email::parse("@gmial.com".to_owned()).is_err());
+        assert!(Email::parse("".to_owned()).is_err());
+        let email = Email("".to_owned());
+        // assert!(Email("".()).is_err());
+        
+    }
+    
 }
