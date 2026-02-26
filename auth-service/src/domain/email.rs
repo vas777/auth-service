@@ -31,18 +31,13 @@ mod test {
 
     #[test]
     fn check_email() {
-        // let email = Email();
-        // assert_eq!(
-        //     Email::parse("vas@gmail.com".to_owned()),
-        //     Ok(Email("vas@gmail.com".to_owned()))
-        // );
-        // println!("{email:?}");
-        // let email = Email("vasgmial.com".to_owned());
-        // assert_eq!(email.parse(), Err("Not valid email vasgmial.com".to_owned()));
-        // let email = Email("vasgmial.com".to_owned());
-        // assert_eq!(email.parse(), Err("Not valid email vasgmial.com".to_owned()));
-        // let email = Email("vasgmial.com".to_owned());
-        // assert_eq!(email.parse(), Ok(()));
+        assert_eq!(
+            Email::parse("vas@gmail.com".to_owned()),
+            Ok(Email("vas@gmail.com".to_owned()))
+        );
+        assert_eq!(Email::parse("vasgmial.com".to_owned()), Err("Not valid email: `vasgmial.com`".to_owned()));
+        assert_eq!(Email::parse("".to_owned()), Err("Not valid email: ``".to_owned()));
+        assert_eq!(Email::parse("@".to_owned()), Err("Not valid email: `@`".to_owned()));
     }
 
     #[derive(Debug, Clone)]
