@@ -49,5 +49,4 @@ mod test {
     fn valid_password_are_parsed_successfully(valid_password: ValidPasswordFixture) -> bool {
         Password::parse(valid_password.0).is_ok()
     }
-
 }

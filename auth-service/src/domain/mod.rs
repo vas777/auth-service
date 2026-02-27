@@ -3,6 +3,7 @@ mod email;
 mod error;
 mod password;
 mod user;
+
 pub use data_store::*;
 pub use email::*;
 pub use error::*;

@@ -19,8 +19,6 @@ pub async fn signup(
 
     let mut user_store = state.user_store.write().await;
 
-    // for now I only retrun UserAlreadyExists from add_user
-    // TODO: instead of using unwrap, early return AuthAPIError::UnexpectedError if add_user() fails.
     if user_store.add_user(user).await.is_err() {
         return Err(AuthAPIError::UserAlreadyExists);
     };
@@ -32,6 +30,7 @@ pub async fn signup(
     Ok((StatusCode::CREATED, response))
 }
 
+// TODO why this stayed as Strings ?
 #[derive(Deserialize)]
 pub struct SignupRequest {
     pub email: String,

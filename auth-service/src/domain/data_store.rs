@@ -1,5 +1,5 @@
-use super::User;
-use crate::domain::{Email, Password};
+use super::{Email, Password, User};
+
 #[derive(Debug, PartialEq)]
 pub enum UserStoreError {
     UserAlreadyExists,
@@ -12,5 +12,6 @@ pub enum UserStoreError {
 pub trait UserStore {
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError>;
-    async fn validate_user(&self, email: &Email, password: &Password) -> Result<(), UserStoreError>;
+    async fn validate_user(&self, email: &Email, password: &Password)
+        -> Result<(), UserStoreError>;
 }

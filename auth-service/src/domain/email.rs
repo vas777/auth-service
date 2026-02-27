@@ -35,9 +35,18 @@ mod test {
             Email::parse("vas@gmail.com".to_owned()),
             Ok(Email("vas@gmail.com".to_owned()))
         );
-        assert_eq!(Email::parse("vasgmial.com".to_owned()), Err("Not valid email: `vasgmial.com`".to_owned()));
-        assert_eq!(Email::parse("".to_owned()), Err("Not valid email: ``".to_owned()));
-        assert_eq!(Email::parse("@".to_owned()), Err("Not valid email: `@`".to_owned()));
+        assert_eq!(
+            Email::parse("vasgmial.com".to_owned()),
+            Err("Not valid email: `vasgmial.com`".to_owned())
+        );
+        assert_eq!(
+            Email::parse("".to_owned()),
+            Err("Not valid email: ``".to_owned())
+        );
+        assert_eq!(
+            Email::parse("@".to_owned()),
+            Err("Not valid email: `@`".to_owned())
+        );
     }
 
     #[derive(Debug, Clone)]
@@ -56,5 +65,4 @@ mod test {
     fn valid_emails_are_parsed_successfully(valid_email: ValidEmailFixture) -> bool {
         Email::parse(valid_email.0).is_ok()
     }
-
 }
