@@ -40,7 +40,7 @@ impl Application {
             .route("/signup", post(signup))
             .route("/login", post(login))
             .route("/logout", post(logout))
-            .route("/verify-2fa", post(verify_2fa)) // Example route
+            .route("/verify-2fa", post(verify_2fa))
             .route("/verify-token", post(verify_token))
             .with_state(app_state);
 
@@ -77,6 +77,9 @@ impl IntoResponse for AuthAPIError {
         let (status, error_message) = match self {
             AuthAPIError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
             AuthAPIError::InvalidCredentials => (StatusCode::BAD_REQUEST, "Invalid credentials"),
+            AuthAPIError::IncorrectCredentials => {
+                (StatusCode::UNAUTHORIZED, "Incorrect credentials")
+            }
             AuthAPIError::UnexpectedError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error")
             }

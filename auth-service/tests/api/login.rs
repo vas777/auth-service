@@ -1,8 +1,4 @@
 use crate::helpers::{get_random_email, TestApp};
-use auth_service::{
-    domain::{self, Email},
-    ErrorResponse,
-};
 use serde::Serialize;
 
 #[tokio::test]
@@ -56,7 +52,7 @@ async fn should_return_400_if_invalid_input() {
 
     let test_cases = [
         LoginRequest {
-            email: get_random_email(),
+            email: "myemail".to_owned(),
             password: "password".to_owned(),
         },
         LoginRequest {
@@ -87,27 +83,13 @@ async fn should_return_401_if_incorrect_credentials() {
     // that a 401 HTTP status code is returned along with the appropriate error message.
     let app = TestApp::new().await;
 
-    #[derive(Serialize, Debug)]
-    struct LoginRequest {
-        email: String,
-        password: String,
-    }
-
     let email = String::from("mycorrect@email.com");
     let password = String::from("mylongcorrectvalidpass");
-    let to_signup = serde_json::json!({
-        "email": email.clone(),
-        "password": password.clone(),
-        "requires2FA": true
-    });
 
     let to_login = serde_json::json!({
         "email": email.clone(),
         "password": password.clone(),
     });
-
-    let response = app.post_signup(&to_signup).await;
-    assert_eq!(response.status().as_u16(), 201, "Failed to create user.");
     let response = app.post_login(&to_login).await;
 
     assert_eq!(
