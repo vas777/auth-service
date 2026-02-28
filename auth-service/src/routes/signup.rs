@@ -32,6 +32,7 @@ pub async fn signup(
 
 // TODO why this stayed as Strings ?
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SignupRequest {
     pub email: String,
     pub password: String,

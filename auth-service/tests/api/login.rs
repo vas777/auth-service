@@ -10,7 +10,6 @@ async fn should_return_422_if_malformed_credentials() {
     let test_cases = [
         serde_json::json!({
             "password": "password123",
-            // "email": random_email,
             "requires2FA": true
         }),
         serde_json::json!({
@@ -23,6 +22,11 @@ async fn should_return_422_if_malformed_credentials() {
         serde_json::json!({
             "pas": "password123",
             "ema": random_email,
+            "req": true
+        }),
+        serde_json::json!({
+            "email": "vas@gmail.com" ,
+            "password": "password123",
             "req": true
         }),
     ];
@@ -99,3 +103,5 @@ async fn should_return_401_if_incorrect_credentials() {
         to_login
     )
 }
+
+// TODO why we need `at this point` docker compose and postman tests ?
