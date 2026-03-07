@@ -17,6 +17,7 @@ pub mod app_state;
 pub mod domain;
 pub mod routes;
 pub mod services;
+pub mod utils;
 
 // This struct encapsulates our application-related logic.
 pub struct Application {
@@ -43,11 +44,6 @@ impl Application {
             .route("/verify-2fa", post(verify_2fa))
             .route("/verify-token", post(verify_token))
             .with_state(app_state);
-
-        // TODO ask: async before || and after || ? Is there difference ?
-        // .route("/", get(  || async {
-        //     Html("<h1>Hello, World! You made it so far and you will get even further!</h1>")
-        // }));
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
