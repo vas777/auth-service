@@ -29,11 +29,7 @@ pub struct Application {
 
 impl Application {
     pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
-        let allowed_origins = [
-            "http://localhost:8000".parse()?,
-            // TODO: Replace [YOUR_DROPLET_IP] with your Droplet IP address
-            "http://209.38.247.80:8000".parse()?,
-        ];
+        let allowed_origins = ["http://localhost:8000".parse()?];
 
         let cors = CorsLayer::new()
             // Allow GET and POST requests
