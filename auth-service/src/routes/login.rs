@@ -1,5 +1,5 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use axum_extra::extract::CookieJar;
+use axum_extra::extract::{cookie::Cookie, CookieJar};
 use serde::Deserialize;
 
 use crate::{
@@ -33,13 +33,13 @@ pub async fn login(
         let auth_cookie =
             generate_auth_cookie(&email).map_err(|_| AuthAPIError::UnexpectedError)?;
 
-        Ok::<_, AuthAPIError>((auth_cookie, StatusCode::OK.into_response()))
+        Ok::<Cookie<'_>, AuthAPIError>(auth_cookie)
     }
     .await;
 
     // Handle the single result at the very end
     match result {
-        Ok((cookie, response)) => (jar.add(cookie), Ok(response)),
+        Ok(cookie) => (jar.add(cookie), Ok(StatusCode::OK.into_response())),
         Err(e) => (jar, Err(e)),
     }
 }

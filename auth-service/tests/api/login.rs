@@ -137,5 +137,3 @@ async fn should_return_200_if_valid_credentials_and_2fa_disabled() {
 
     assert!(!auth_cookie.value().is_empty());
 }
-
-// TODO why we need `at this point` docker compose and postman tests ?
