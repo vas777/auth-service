@@ -1,7 +1,11 @@
+use crate::helpers::{get_random_email, TestApp};
+use auth_service::{
+    domain::Email,
+    utils::{auth::generate_auth_cookie, constants::JWT_COOKIE_NAME},
+    ErrorResponse,
+};
 use axum::http::response;
 use serde_json::json;
-use crate::helpers::{TestApp, get_random_email };
-use auth_service::{ErrorResponse, domain::Email, utils::{auth::generate_auth_cookie, constants::JWT_COOKIE_NAME}};
 
 #[tokio::test]
 async fn should_return_200_valid_token() {
@@ -43,7 +47,7 @@ async fn should_return_200_valid_token() {
 
 #[tokio::test]
 async fn should_return_401_if_invalid_token() {
-       let app = TestApp::new().await;
+    let app = TestApp::new().await;
 
     let random_email = get_random_email();
 
@@ -75,10 +79,10 @@ async fn should_return_401_if_invalid_token() {
     // lets breakit
     token.push_str("bre.akit");
     let reqwest = json!({
-        "token": token 
+        "token": token
     });
 
-    println!("{:?}",reqwest);
+    println!("{:?}", reqwest);
 
     let response = app.post_verify_token(&reqwest).await;
 
