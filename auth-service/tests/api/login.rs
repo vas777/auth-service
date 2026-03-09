@@ -1,5 +1,5 @@
 use crate::helpers::{get_random_email, TestApp};
-use auth_service::{utils::constants::JWT_COOKIE_NAME, ErrorResponse};
+use auth_service::utils::constants::JWT_COOKIE_NAME;
 use serde::Serialize;
 
 #[tokio::test]

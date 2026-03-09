@@ -1,5 +1,4 @@
-use auth_service::{utils::constants::JWT_COOKIE_NAME, ErrorResponse};
-use axum::http::response;
+use auth_service::utils::constants::JWT_COOKIE_NAME;
 use reqwest::Url;
 
 use crate::helpers::{get_random_email, TestApp};
@@ -25,10 +24,26 @@ async fn should_return_200_if_valid_jwt_cookie() {
     });
 
     let response = app.post_login(&login_body).await;
+
+    let auth_cookie = response
+        .cookies()
+        .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+        .expect("No auth cookie found");
+
+    let token = auth_cookie.value().to_owned();
+
     assert_eq!(response.status().as_u16(), 200);
 
     let response = app.post_logout().await;
     assert_eq!(response.status().as_u16(), 200);
+
+    let result = app
+        .banned_token_store
+        .read()
+        .await
+        .is_banned_token(&token)
+        .await;
+    assert!(result.is_ok());
 }
 
 #[tokio::test]
@@ -80,7 +95,6 @@ async fn should_return_401_if_invalid_token() {
         ),
         &Url::parse("http://127.0.0.1").expect("Failed to parse URL"),
     );
-    println!("{:?}", app);
     let response = app.post_logout().await;
     assert_eq!(response.status().as_u16(), 401)
 }
