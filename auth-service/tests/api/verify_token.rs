@@ -38,7 +38,6 @@ async fn should_return_200_valid_token() {
 
     let response = app.post_verify_token(&reqwest).await;
     assert_eq!(response.status().as_u16(), 200)
-
 }
 
 #[tokio::test]
@@ -123,10 +122,9 @@ async fn should_return_401_if_banned_token() {
         .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
         .expect("No auth cookie found");
 
-    
     let response = app.post_logout().await;
-    assert_eq!(response.status().as_u16(),200);
-    
+    assert_eq!(response.status().as_u16(), 200);
+
     let token = auth_cookie.value().to_owned();
     let reqwest = json!({
         "token": token

@@ -32,7 +32,7 @@ pub async fn logout(
     }
     .await;
 
-    // TODO: Validate JWT token by calling `validate_token` from the auth service.
+    // Validate JWT token by calling `validate_token` from the auth service.
     // If the token is valid you can ignore the returned claims for now.
     // Return AuthAPIError::InvalidToken is validation fails.
     let jar = jar.remove(JWT_COOKIE_NAME);

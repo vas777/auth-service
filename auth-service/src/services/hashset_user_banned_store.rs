@@ -13,13 +13,13 @@ impl BannedTokenStore for HashsetBannedTokenStore {
         Ok(())
     }
 
-    async fn is_banned_token(&self, token: &str) -> Result<(), UserStoreError> {
+    async fn is_banned_token(&self, token: &str) -> Result<bool, UserStoreError> {
         if !self.store.contains(token) {
             // TODO questionable
             // so add its own enum
             return Err(UserStoreError::UserNotFound);
         }
-        Ok(())
+        Ok(true)
     }
 }
 
