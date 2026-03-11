@@ -27,10 +27,6 @@ impl UserStore for HashmapUserStore {
     // `User` object or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
-        // match self.users.get(email) {
-        //     Some(u) => Ok(u.clone()),
-        //     None=> Err(UserStoreError::UserNotFound)
-        // }
         self.users
             .get(email)
             .cloned()

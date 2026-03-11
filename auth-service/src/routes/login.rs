@@ -1,10 +1,10 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use axum_extra::extract::{cookie::Cookie, CookieJar};
+use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     app_state::AppState,
-    domain::{AuthAPIError, Email, Password},
+    domain::{AuthAPIError, Email, LoginAttemptId, Password, TwoFACode},
     utils::auth::generate_auth_cookie,
 };
 
@@ -35,31 +35,62 @@ pub async fn login(
     };
 
     match user.requires_2fa {
-        true => handle_2fa(jar).await,
+        true => handle_2fa(&user.email, &state, jar).await,
         false => handle_no_2fa(&user.email, jar).await,
     }
 }
 
 async fn handle_2fa(
+    email: &Email,
+    state: &AppState,
     jar: CookieJar,
 ) -> (
     CookieJar,
     Result<(StatusCode, Json<LoginResponse>), AuthAPIError>,
 ) {
-    // TODO: Return a TwoFactorAuthResponse. The message should be "2FA required".
+    let login_attempt_id = LoginAttemptId::default();
+    let two_fa_code = TwoFACode::default();
+    // Return a TwoFactorAuthResponse. The message should be "2FA required".
     // The login attempt ID should be "123456". We will replace this hard-coded login attempt ID soon!
-        (
-        jar,
-        Ok((
-            StatusCode::PARTIAL_CONTENT,
-            Json(LoginResponse::TwoFactorAuth({
-                TwoFactorAuthResponse {
-                    message: "2FA required".to_owned(),
-                    login_attempt_id: "123456".to_owned(),
-                }
-            })),
-        )),
-    )
+
+    // Store the ID and code in our 2FA code store.
+    // Return `AuthAPIError::UnexpectedError` if the operation fails
+    if state
+        .two_fa_code_store
+        .write()
+        .await
+        .add_code(email.clone(), login_attempt_id.clone(), two_fa_code.clone())
+        .await
+        .is_err()
+    {
+        return (jar, Err(AuthAPIError::UnexpectedError));
+    }
+
+    // send 2FA code via the email client. Return `AuthAPIError::UnexpectedError` if the operation fails.
+    if state
+        .email_client
+        .write()
+        .await
+        .send_email(email, "2FA code", two_fa_code.as_ref())
+        .await
+        .is_err()
+    {
+        return (jar, Err(AuthAPIError::UnexpectedError));
+    }
+
+    let response = Json(LoginResponse::TwoFactorAuth(TwoFactorAuthResponse {
+        message: "2FA required".to_owned(),
+        login_attempt_id: login_attempt_id.as_ref().to_owned(), // Add the generated login attempt ID
+    }));
+
+    let auth_cookie = match generate_auth_cookie(&email) {
+        Ok(cookie) => cookie,
+        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+    };
+
+    let updated_jar = jar.add(auth_cookie);
+
+    (updated_jar, Ok((StatusCode::PARTIAL_CONTENT, response)))
 }
 
 async fn handle_no_2fa(
@@ -76,9 +107,10 @@ async fn handle_no_2fa(
 
     let updated_jar = jar.add(auth_cookie);
 
-    (updated_jar, Ok((StatusCode::OK, Json(LoginResponse::RegularAuth))))
-
-
+    (
+        updated_jar,
+        Ok((StatusCode::OK, Json(LoginResponse::RegularAuth))),
+    )
 }
 
 // TODO repeat why this are not dedicated types Email; Password?
