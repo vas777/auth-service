@@ -42,3 +42,12 @@ curl  -v --location --request POST 'localhost:3000/signup' \
     "password": "pass",
     "requires2FA": true
 }'
+
+
+curl  -v --location --request POST 'localhost:3000/verify-2fa' \
+--header 'Content-Type: application/json' \
+--data '{
+    "email": "vas77794@gmail.com",
+    "loginAttemptId": "c0cf3f17-a544-4bd6-ad38-7677a6dc57ba",
+    "2FACode": "592426"
+}'
