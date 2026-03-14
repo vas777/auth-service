@@ -1,0 +1,1 @@
+docker kill ps-db ; docker rm ps-db

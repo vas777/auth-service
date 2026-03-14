@@ -285,5 +285,4 @@ async fn should_return_401_if_same_code_twice() {
 
     let response = app.post_verify_2fa(&verify_2fa_body).await;
     assert_eq!(response.status().as_u16(), 401);
-
 }

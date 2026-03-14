@@ -9,8 +9,8 @@ use axum::{
 };
 use domain::AuthAPIError;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
 use std::error::Error;
 use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, services::ServeDir};
