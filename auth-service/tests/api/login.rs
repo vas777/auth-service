@@ -70,7 +70,7 @@ async fn should_return_400_if_invalid_input() {
         },
         LoginRequest {
             email: "email".to_owned(),
-            password: "1234".to_owned(),
+            password: "12345678".to_owned(),
         },
     ];
 

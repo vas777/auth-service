@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use super::{Email, Password, User};
+use super::{Email, User};
 
 #[derive(Debug, PartialEq)]
 pub enum UserStoreError {
@@ -14,8 +14,7 @@ pub enum UserStoreError {
 pub trait UserStore {
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError>;
-    async fn validate_user(&self, email: &Email, password: &Password)
-        -> Result<(), UserStoreError>;
+    async fn validate_user(&self, email: &Email, raw_password: &str) -> Result<(), UserStoreError>;
 }
 
 #[async_trait::async_trait]

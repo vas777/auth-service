@@ -2,7 +2,7 @@ use auth_service::{
     app_state::{AppState, BannedTokens, UserStoreType},
     get_postgres_pool,
     services::{HashmapTwoFACodeStore, HashmapUserStore, HashsetBannedTokenStore, MockEmailClient},
-    utils::constants::{env, prod, DATABASE_URL},
+    utils::constants::{prod, DATABASE_URL},
     Application,
 };
 use sqlx::PgPool;
