@@ -7,6 +7,7 @@ WORKDIR /app
 
 FROM chef AS planner
 COPY . .
+ENV SQLX_OFFLINE true
 # Capture info needed to build dependencies
 RUN cargo chef prepare --recipe-path recipe.json
 

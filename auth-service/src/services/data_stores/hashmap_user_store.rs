@@ -27,7 +27,10 @@ impl UserStore for HashmapUserStore {
     // `User` object or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
-        self.users.get(email).cloned().ok_or(UserStoreError::UserNotFound)
+        self.users
+            .get(email)
+            .cloned()
+            .ok_or(UserStoreError::UserNotFound)
     }
 
     // Implement a public method called `validate_user`, which takes an
@@ -38,8 +41,8 @@ impl UserStore for HashmapUserStore {
     // Return `UserStoreError::InvalidCredentials` if the password is incorrect.
     async fn validate_user(&self, email: &Email, raw_password: &str) -> Result<(), UserStoreError> {
         let u = self.get_user(email).await?;
-        
-        u.password 
+
+        u.password_hash
             .verify_raw_password(raw_password)
             .await
             .map_err(|_| UserStoreError::InvalidCredentials)

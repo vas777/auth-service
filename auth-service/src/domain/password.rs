@@ -43,14 +43,14 @@ impl HashedPassword {
         let password_candidate = password_candidate.to_owned();
 
         let res = tokio::task::spawn_blocking(move || {
-            
             // To avoid blocking other async tasks, update this function to
             // perform hashing on a separate thread pool using
             // tokio::task::spawn_blocking.
             // Return Result<(), Box<dyn Error + Send + Sync>>.
             // Every HashedPassword instance can verify a password_candidate.
-            let expected_password_hash: PasswordHash<'_> =PasswordHash::new(password_hash.as_str())?;
-            
+            let expected_password_hash: PasswordHash<'_> =
+                PasswordHash::new(password_hash.as_str())?;
+
             Argon2::default()
                 .verify_password(password_candidate.as_bytes(), &expected_password_hash)
                 .map_err(|e| Box::new(e))
@@ -65,13 +65,14 @@ impl HashedPassword {
 }
 
 // Helper function to hash passwords before persisting them in storage.
-// TODO:
+//
 // Hashing is a CPU-intensive operation. To avoid blocking
 // other async tasks, update this function to perform hashing on a
 // separate thread pool using tokio::task::spawn_blocking.
-async fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error>> {
+async fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error + Send + Sync>> {
     let password = password.to_owned();
-    //  = tokio::task::spawn_blocking(move || {
+
+    let res = tokio::task::spawn_blocking(move || {
         let salt: SaltString = SaltString::generate(&mut OsRng);
         let password_hash = Argon2::new(
             Algorithm::Argon2id,
@@ -80,14 +81,15 @@ async fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error>>
         )
         .hash_password(password.as_bytes(), &salt)?
         .to_string();
-        Ok::<String, _>(password_hash)
-    // })
-    // .await?;
 
-    // match res {
-        // Ok(v) => Ok(v),
-        // Err(e) => Err(Box::new(e)),
-    // }
+        Ok::<String, Box<dyn Error + Send + Sync>>(password_hash)
+    })
+    .await?;
+
+    match res {
+        Ok(v) => Ok(v),
+        Err(e) => Err(e),
+    }
 }
 
 impl From<PasswordHash<'_>> for HashedPassword {
