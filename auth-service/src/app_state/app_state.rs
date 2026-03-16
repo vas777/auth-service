@@ -1,17 +1,21 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::domain::{BannedTokenStore, EmailClient, TwoFACodeStore, UserStore};
+use crate::{
+    domain::{BannedTokenStore, EmailClient, TwoFACodeStore, UserStore},
+    services::PostgresUserStore,
+};
 // Using a type alias to improve readability!
 pub type UserStoreType = Arc<RwLock<dyn UserStore + Send + Sync>>;
 pub type BannedTokens = Arc<RwLock<dyn BannedTokenStore + Send + Sync>>;
 pub type TwoFACodeStoreType = Arc<RwLock<dyn TwoFACodeStore + Send + Sync>>;
 // TODO: are arc and rwlock are overkill ?
 pub type EmailClientType = Arc<RwLock<dyn EmailClient + Send + Sync>>;
+pub type PostgresUserStoreType = Arc<RwLock<dyn UserStore + Send + Sync>>;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub user_store: UserStoreType,
+    pub user_store: PostgresUserStoreType,
     pub banned_token_store: BannedTokens,
     pub two_fa_code_store: TwoFACodeStoreType,
     pub email_client: EmailClientType,
@@ -19,7 +23,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(
-        user_store: UserStoreType,
+        user_store: PostgresUserStoreType,
         banned_token_store: BannedTokens,
         two_fa_code_store: TwoFACodeStoreType,
         email_client: EmailClientType,

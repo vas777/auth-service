@@ -2,6 +2,7 @@ use sqlx::PgPool;
 
 use crate::domain::{Email, HashedPassword, User, UserStore, UserStoreError};
 
+#[derive(Clone)]
 pub struct PostgresUserStore {
     pool: PgPool,
 }
