@@ -1,10 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::{
-    domain::{BannedTokenStore, EmailClient, TwoFACodeStore, UserStore},
-    services::PostgresUserStore,
-};
+use crate::domain::{BannedTokenStore, EmailClient, TwoFACodeStore, UserStore};
 // Using a type alias to improve readability!
 pub type UserStoreType = Arc<RwLock<dyn UserStore + Send + Sync>>;
 pub type BannedTokens = Arc<RwLock<dyn BannedTokenStore + Send + Sync>>;

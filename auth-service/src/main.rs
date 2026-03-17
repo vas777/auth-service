@@ -19,7 +19,6 @@ async fn main() {
     let pg_pool = Arc::new(RwLock::new(PostgresUserStore::new(
         configure_postgresql().await,
     )));
-    let user_store: UserStoreType = Arc::new(RwLock::new(HashmapUserStore::default()));
     let banned_token_store: BannedTokens =
         Arc::new(RwLock::new(HashsetBannedTokenStore::default()));
     let two_fa_code_store = Arc::new(RwLock::new(HashmapTwoFACodeStore::default()));

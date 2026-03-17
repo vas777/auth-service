@@ -5,9 +5,10 @@ use auth_service::utils::constants::{test, DATABASE_URL};
 use auth_service::Application;
 use auth_service::{app_state::*, get_postgres_pool};
 use reqwest::cookie::Jar;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::Executor;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::PgPool;
+use sqlx::{Connection, Executor, PgConnection};
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -18,15 +19,17 @@ pub struct TestApp {
     pub two_fa_code_store: TwoFACodeStoreType,
     pub http_client: reqwest::Client,
     pub banned_token_store: BannedTokens,
+    pub db_name: String,
+    pub clean_up_called: bool,
     pub email_client: EmailClientType,
 }
 
 impl TestApp {
     pub async fn new() -> Self {
-        // pretty_env_logger::init();
+        let db_name = Uuid::new_v4().to_string();
 
         let user_store: UserStoreType = Arc::new(RwLock::new(PostgresUserStore::new(
-            configure_postgresql().await,
+            configure_postgresql(&db_name).await,
         )));
         let banned_token_store: BannedTokens =
             Arc::new(RwLock::new(HashsetBannedTokenStore::default()));
@@ -64,6 +67,8 @@ impl TestApp {
             two_fa_code_store,
             http_client,
             banned_token_store: banned_token_store.clone(),
+            db_name,
+            clean_up_called: false,
             email_client,
         }
     }
@@ -134,16 +139,31 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 }
+// TODO: think about this
+// because test is asycn so we have runtime 
+// and Runtime::new will try to create new runtime within async test that has runtime ?
+// Cannot start a runtime from within a runtime. This happens because a function (like `block_on`)
+//        attempted to block the current thread while the thread is being used to drive asynchronous tasks.
+impl Drop for TestApp {
+    fn drop(&mut self) {
+        // if self.clean_up_called {
+        //     panic!()
+        // }
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            delete_database(&self.db_name).await;
+        })
+    }
+}
 
 pub fn get_random_email() -> String {
     format!("{}@example.com", Uuid::new_v4())
 }
 
-async fn configure_postgresql() -> PgPool {
+async fn configure_postgresql(db_name: &str) -> PgPool {
     let postgresql_conn_url = DATABASE_URL.to_owned();
 
     // We are creating a new database for each test case, and we need to ensure each database has a unique name!
-    let db_name = Uuid::new_v4().to_string();
 
     configure_database(&postgresql_conn_url, &db_name).await;
 
@@ -182,4 +202,38 @@ async fn configure_database(db_conn_string: &str, db_name: &str) {
         .run(&connection)
         .await
         .expect("Failed to migrate the database");
+}
+
+async fn delete_database(db_name: &str) {
+    let postgresql_conn_url: String = DATABASE_URL.to_owned();
+
+    let connection_options = PgConnectOptions::from_str(&postgresql_conn_url)
+        .expect("Failed to parse PostgreSQL connection string");
+
+    let mut connection = PgConnection::connect_with(&connection_options)
+        .await
+        .expect("Failed to connect to Postgres");
+
+    // Kill any active connections to the database
+    connection
+        .execute(
+            format!(
+                r#"
+                SELECT pg_terminate_backend(pg_stat_activity.pid)
+                FROM pg_stat_activity
+                WHERE pg_stat_activity.datname = '{}'
+                  AND pid <> pg_backend_pid();
+        "#,
+                db_name
+            )
+            .as_str(),
+        )
+        .await
+        .expect("Failed to drop the database.");
+
+    // Drop the database
+    connection
+        .execute(format!(r#"DROP DATABASE "{}";"#, db_name).as_str())
+        .await
+        .expect("Failed to drop the database.");
 }
