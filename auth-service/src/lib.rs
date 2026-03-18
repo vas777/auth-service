@@ -63,8 +63,8 @@ impl Application {
 
         // Create a new Application instance and return it
         Ok(Application {
-            server: server,
-            address: address,
+            server,
+            address,
         })
     }
 

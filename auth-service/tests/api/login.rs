@@ -5,10 +5,12 @@ use auth_service::{
     utils::constants::JWT_COOKIE_NAME,
 };
 use serde::Serialize;
+use test_helpers::log_call;
 
 #[tokio::test]
+#[log_call(clean)]
 async fn should_return_422_if_malformed_credentials() {
-    let app = TestApp::new().await;
+    let mut app = TestApp::new().await;
 
     let random_email = get_random_email();
 
@@ -44,7 +46,8 @@ async fn should_return_422_if_malformed_credentials() {
             "Failed for input: {:?}",
             test_case
         );
-    }
+    };
+    // app.clean_up().await;
 }
 
 #[tokio::test]

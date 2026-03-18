@@ -1,0 +1,3377 @@
+warning: unused imports: `Attribute`, `FnArg`, and `Pat`
+ --> /home/scontain/my/auth-service/test_helpers/src/lib.rs:4:17
+  |
+4 | use syn::{self, Attribute, FnArg, Ident, ItemFn, Pat, Stmt, parse::{Parse, ParseStream}, parse_macro_input, parse_quote, Result};
+  |                 ^^^^^^^^^  ^^^^^                 ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+    Checking auth-service v0.1.0 (/home/scontain/my/auth-service/auth-service)
+error[E0425]: cannot find value `app` in this scope
+  --> tests/api/login.rs:11:1
+   |
+11 | #[log_call(clean)]
+   | ^^^^^^^^^^^^^^^^^^ not found in this scope
+   |
+   = note: this error originates in the attribute macro `log_call` (in Nightly builds, run with -Z macro-backtrace for more info)
+For more information about this error, try `rustc --explain E0425`.
+
+#![feature(prelude_import)]
+#[macro_use]
+extern crate std;
+#[prelude_import]
+use std::prelude::rust_2021::*;
+mod helpers {
+    use auth_service::services::{
+        HashmapTwoFACodeStore, HashsetBannedTokenStore, MockEmailClient,
+        PostgresUserStore,
+    };
+    use auth_service::utils::constants::{test, DATABASE_URL};
+    use auth_service::Application;
+    use auth_service::{app_state::*, get_postgres_pool};
+    use reqwest::cookie::Jar;
+    use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+    use sqlx::PgPool;
+    use sqlx::{Connection, Executor, PgConnection};
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+    use uuid::Uuid;
+    pub struct TestApp {
+        pub address: String,
+        pub cookie_jar: Arc<Jar>,
+        pub two_fa_code_store: TwoFACodeStoreType,
+        pub http_client: reqwest::Client,
+        pub banned_token_store: BannedTokens,
+        pub db_name: String,
+        pub clean_up_called: bool,
+        pub email_client: EmailClientType,
+    }
+    impl TestApp {
+        pub async fn new() -> Self {
+            let db_name = Uuid::new_v4().to_string();
+            let user_store: UserStoreType = Arc::new(
+                RwLock::new(PostgresUserStore::new(configure_postgresql(&db_name).await)),
+            );
+            let banned_token_store: BannedTokens = Arc::new(
+                RwLock::new(HashsetBannedTokenStore::default()),
+            );
+            let two_fa_code_store = Arc::new(
+                RwLock::new(HashmapTwoFACodeStore::default()),
+            );
+            let email_client = Arc::new(RwLock::new(MockEmailClient));
+            let app_state = AppState::new(
+                user_store,
+                banned_token_store.clone(),
+                two_fa_code_store.clone(),
+                email_client.clone(),
+            );
+            let app = Application::build(app_state, test::APP_ADDRESS)
+                .await
+                .expect("Failed to build app");
+            let address = ::alloc::__export::must_use({
+                ::alloc::fmt::format(format_args!("http://{0}", app.address.clone()))
+            });
+            #[allow(clippy::let_underscore_future)]
+            let _ = tokio::spawn(app.run());
+            let cookie_jar = Arc::new(Jar::default());
+            let http_client = reqwest::Client::builder()
+                .cookie_provider(cookie_jar.clone())
+                .build()
+                .unwrap();
+            TestApp {
+                address,
+                cookie_jar,
+                two_fa_code_store,
+                http_client,
+                banned_token_store: banned_token_store.clone(),
+                db_name,
+                clean_up_called: false,
+                email_client,
+            }
+        }
+        pub async fn get_root(&self) -> reqwest::Response {
+            self.http_client
+                .get(
+                    &::alloc::__export::must_use({
+                        ::alloc::fmt::format(format_args!("{0}/", &self.address))
+                    }),
+                )
+                .send()
+                .await
+                .expect("Failed to execute request.")
+        }
+        pub async fn post_signup<Body>(&self, body: &Body) -> reqwest::Response
+        where
+            Body: serde::Serialize,
+        {
+            self.http_client
+                .post(
+                    &::alloc::__export::must_use({
+                        ::alloc::fmt::format(format_args!("{0}/signup", &self.address))
+                    }),
+                )
+                .json(body)
+                .send()
+                .await
+                .expect("Failed to execute request.")
+        }
+        pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
+        where
+            Body: serde::Serialize,
+        {
+            self.http_client
+                .post(
+                    &::alloc::__export::must_use({
+                        ::alloc::fmt::format(format_args!("{0}/login", &self.address))
+                    }),
+                )
+                .json(body)
+                .send()
+                .await
+                .expect("Failed to execute request.")
+        }
+        pub async fn post_logout(&self) -> reqwest::Response {
+            self.http_client
+                .post(
+                    &::alloc::__export::must_use({
+                        ::alloc::fmt::format(format_args!("{0}/logout", &self.address))
+                    }),
+                )
+                .send()
+                .await
+                .expect("Failed to execute request.")
+        }
+        pub async fn post_verify_2fa<Body>(&self, body: &Body) -> reqwest::Response
+        where
+            Body: serde::Serialize,
+        {
+            self.http_client
+                .post(
+                    ::alloc::__export::must_use({
+                        ::alloc::fmt::format(
+                            format_args!("{0}/verify-2fa", &self.address),
+                        )
+                    }),
+                )
+                .json(body)
+                .send()
+                .await
+                .expect("Failed to execute request.")
+        }
+        pub async fn post_verify_token<Body>(&self, body: &Body) -> reqwest::Response
+        where
+            Body: serde::Serialize,
+        {
+            self.http_client
+                .post(
+                    ::alloc::__export::must_use({
+                        ::alloc::fmt::format(
+                            format_args!("{0}/verify-token", &self.address),
+                        )
+                    }),
+                )
+                .json(body)
+                .send()
+                .await
+                .expect("Failed to execute request.")
+        }
+        pub async fn clean_up(&mut self) {
+            delete_database(&self.db_name).await;
+            self.clean_up_called = true;
+        }
+    }
+    impl Drop for TestApp {
+        fn drop(&mut self) {
+            if !self.clean_up_called {
+                ::core::panicking::panic("explicit panic")
+            }
+        }
+    }
+    pub fn get_random_email() -> String {
+        ::alloc::__export::must_use({
+            ::alloc::fmt::format(format_args!("{0}@example.com", Uuid::new_v4()))
+        })
+    }
+    async fn configure_postgresql(db_name: &str) -> PgPool {
+        let postgresql_conn_url = DATABASE_URL.to_owned();
+        configure_database(&postgresql_conn_url, &db_name).await;
+        let postgresql_conn_url_with_db = ::alloc::__export::must_use({
+            ::alloc::fmt::format(format_args!("{0}/{1}", postgresql_conn_url, db_name))
+        });
+        get_postgres_pool(&postgresql_conn_url_with_db)
+            .await
+            .expect("Failed to create Postgres connection pool!")
+    }
+    async fn configure_database(db_conn_string: &str, db_name: &str) {
+        let connection = PgPoolOptions::new()
+            .connect(db_conn_string)
+            .await
+            .expect("Failed to create Postgres connection pool.");
+        connection
+            .execute(
+                ::alloc::__export::must_use({
+                        ::alloc::fmt::format(
+                            format_args!("CREATE DATABASE \"{0}\";", db_name),
+                        )
+                    })
+                    .as_str(),
+            )
+            .await
+            .expect("Failed to create database.");
+        let db_conn_string = ::alloc::__export::must_use({
+            ::alloc::fmt::format(format_args!("{0}/{1}", db_conn_string, db_name))
+        });
+        let connection = PgPoolOptions::new()
+            .connect(&db_conn_string)
+            .await
+            .expect("Failed to create Postgres connection pool.");
+        {
+            ::sqlx::migrate::Migrator {
+                migrations: ::std::borrow::Cow::Borrowed(
+                    &[
+                        ::sqlx::migrate::Migration {
+                            version: 20260313080313i64,
+                            description: ::std::borrow::Cow::Borrowed(
+                                "crate user table",
+                            ),
+                            migration_type: ::sqlx::migrate::MigrationType::ReversibleUp,
+                            sql: ::std::borrow::Cow::Borrowed(
+                                "-- Add up migration script here\nCREATE TABLE IF NOT EXISTS users(\n   email TEXT NOT NULL PRIMARY KEY,\n   password_hash TEXT NOT NULL,\n   requires_2fa BOOLEAN NOT NULL DEFAULT FALSE\n);",
+                            ),
+                            no_tx: false,
+                            checksum: ::std::borrow::Cow::Borrowed(
+                                &[
+                                    246u8, 44u8, 192u8, 168u8, 7u8, 103u8, 255u8, 12u8, 135u8,
+                                    164u8, 148u8, 158u8, 207u8, 210u8, 219u8, 22u8, 136u8,
+                                    165u8, 74u8, 243u8, 54u8, 9u8, 237u8, 242u8, 204u8, 1u8,
+                                    109u8, 136u8, 12u8, 92u8, 40u8, 203u8, 250u8, 154u8, 10u8,
+                                    91u8, 138u8, 178u8, 53u8, 93u8, 25u8, 129u8, 188u8, 66u8,
+                                    140u8, 221u8, 166u8, 156u8,
+                                ],
+                            ),
+                        },
+                        ::sqlx::migrate::Migration {
+                            version: 20260313080313i64,
+                            description: ::std::borrow::Cow::Borrowed(
+                                "crate user table",
+                            ),
+                            migration_type: ::sqlx::migrate::MigrationType::ReversibleDown,
+                            sql: ::std::borrow::Cow::Borrowed(
+                                "-- Add down migration script here\nDROP TABLE IF EXISTS users;",
+                            ),
+                            no_tx: false,
+                            checksum: ::std::borrow::Cow::Borrowed(
+                                &[
+                                    217u8, 249u8, 120u8, 107u8, 96u8, 194u8, 147u8, 0u8, 54u8,
+                                    253u8, 10u8, 208u8, 246u8, 187u8, 78u8, 216u8, 172u8, 223u8,
+                                    193u8, 76u8, 65u8, 211u8, 156u8, 200u8, 188u8, 97u8, 33u8,
+                                    3u8, 28u8, 115u8, 180u8, 248u8, 82u8, 231u8, 254u8, 176u8,
+                                    147u8, 25u8, 0u8, 233u8, 113u8, 219u8, 221u8, 15u8, 176u8,
+                                    46u8, 146u8, 120u8,
+                                ],
+                            ),
+                        },
+                    ],
+                ),
+                ..::sqlx::migrate::Migrator::DEFAULT
+            }
+        }
+            .run(&connection)
+            .await
+            .expect("Failed to migrate the database");
+    }
+    async fn delete_database(db_name: &str) {
+        let postgresql_conn_url: String = DATABASE_URL.to_owned();
+        let connection_options = PgConnectOptions::from_str(&postgresql_conn_url)
+            .expect("Failed to parse PostgreSQL connection string");
+        let mut connection = PgConnection::connect_with(&connection_options)
+            .await
+            .expect("Failed to connect to Postgres");
+        connection
+            .execute(
+                ::alloc::__export::must_use({
+                        ::alloc::fmt::format(
+                            format_args!(
+                                "\n                SELECT pg_terminate_backend(pg_stat_activity.pid)\n                FROM pg_stat_activity\n                WHERE pg_stat_activity.datname = \'{0}\'\n                  AND pid <> pg_backend_pid();\n        ",
+                                db_name,
+                            ),
+                        )
+                    })
+                    .as_str(),
+            )
+            .await
+            .expect("Failed to drop the database.");
+        connection
+            .execute(
+                ::alloc::__export::must_use({
+                        ::alloc::fmt::format(
+                            format_args!("DROP DATABASE \"{0}\";", db_name),
+                        )
+                    })
+                    .as_str(),
+            )
+            .await
+            .expect("Failed to drop the database.");
+    }
+}
+mod login {
+    use crate::helpers::{get_random_email, TestApp};
+    use auth_service::{
+        domain::{Email, TwoFACode},
+        routes::TwoFactorAuthResponse, utils::constants::JWT_COOKIE_NAME,
+    };
+    use serde::Serialize;
+    use test_helpers::log_call;
+    extern crate test;
+    #[rustc_test_marker = "login::should_return_422_if_malformed_credentials"]
+    #[doc(hidden)]
+    pub const should_return_422_if_malformed_credentials: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "login::should_return_422_if_malformed_credentials",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/login.rs",
+            start_line: 12usize,
+            start_col: 10usize,
+            end_line: 12usize,
+            end_col: 52usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_422_if_malformed_credentials()),
+        ),
+    };
+    fn should_return_422_if_malformed_credentials() {
+        let body = async {
+            let mut app = TestApp::new().await;
+            let random_email = get_random_email();
+            let test_cases = [
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("password").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("pas").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("ema").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(("req").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&"vas@gmail.com").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("password").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("req").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+            ];
+            for test_case in test_cases.iter() {
+                let response = app.post_login(test_case).await;
+                match (&response.status().as_u16(), &422) {
+                    (left_val, right_val) => {
+                        if !(*left_val == *right_val) {
+                            let kind = ::core::panicking::AssertKind::Eq;
+                            ::core::panicking::assert_failed(
+                                kind,
+                                &*left_val,
+                                &*right_val,
+                                ::core::option::Option::Some(
+                                    format_args!("Failed for input: {0:?}", test_case),
+                                ),
+                            );
+                        }
+                    }
+                };
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+        app.clean_up().await;
+    }
+    extern crate test;
+    #[rustc_test_marker = "login::should_return_400_if_invalid_input"]
+    #[doc(hidden)]
+    pub const should_return_400_if_invalid_input: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("login::should_return_400_if_invalid_input"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/login.rs",
+            start_line: 54usize,
+            start_col: 10usize,
+            end_line: 54usize,
+            end_col: 44usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_400_if_invalid_input()),
+        ),
+    };
+    fn should_return_400_if_invalid_input() {
+        let body = async {
+            let app = TestApp::new().await;
+            struct LoginRequest {
+                email: String,
+                password: String,
+            }
+            #[doc(hidden)]
+            #[allow(
+                non_upper_case_globals,
+                unused_attributes,
+                unused_qualifications,
+                clippy::absolute_paths,
+            )]
+            const _: () = {
+                #[allow(unused_extern_crates, clippy::useless_attribute)]
+                extern crate serde as _serde;
+                #[automatically_derived]
+                impl _serde::Serialize for LoginRequest {
+                    fn serialize<__S>(
+                        &self,
+                        __serializer: __S,
+                    ) -> _serde::__private228::Result<__S::Ok, __S::Error>
+                    where
+                        __S: _serde::Serializer,
+                    {
+                        let mut __serde_state = _serde::Serializer::serialize_struct(
+                            __serializer,
+                            "LoginRequest",
+                            false as usize + 1 + 1,
+                        )?;
+                        _serde::ser::SerializeStruct::serialize_field(
+                            &mut __serde_state,
+                            "email",
+                            &self.email,
+                        )?;
+                        _serde::ser::SerializeStruct::serialize_field(
+                            &mut __serde_state,
+                            "password",
+                            &self.password,
+                        )?;
+                        _serde::ser::SerializeStruct::end(__serde_state)
+                    }
+                }
+            };
+            #[automatically_derived]
+            impl ::core::fmt::Debug for LoginRequest {
+                #[inline]
+                fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+                    ::core::fmt::Formatter::debug_struct_field2_finish(
+                        f,
+                        "LoginRequest",
+                        "email",
+                        &self.email,
+                        "password",
+                        &&self.password,
+                    )
+                }
+            }
+            let test_cases = [
+                LoginRequest {
+                    email: "myemail".to_owned(),
+                    password: "password".to_owned(),
+                },
+                LoginRequest {
+                    email: get_random_email(),
+                    password: "1234".to_owned(),
+                },
+                LoginRequest {
+                    email: "email".to_owned(),
+                    password: "12345678".to_owned(),
+                },
+            ];
+            for test_case in test_cases {
+                let response = app.post_login(&test_case).await;
+                match (&response.status().as_u16(), &400) {
+                    (left_val, right_val) => {
+                        if !(*left_val == *right_val) {
+                            let kind = ::core::panicking::AssertKind::Eq;
+                            ::core::panicking::assert_failed(
+                                kind,
+                                &*left_val,
+                                &*right_val,
+                                ::core::option::Option::Some(
+                                    format_args!("Failed with {0:?}", test_case),
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "login::should_return_401_if_incorrect_credentials"]
+    #[doc(hidden)]
+    pub const should_return_401_if_incorrect_credentials: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "login::should_return_401_if_incorrect_credentials",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/login.rs",
+            start_line: 93usize,
+            start_col: 10usize,
+            end_line: 93usize,
+            end_col: 52usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_401_if_incorrect_credentials()),
+        ),
+    };
+    fn should_return_401_if_incorrect_credentials() {
+        let body = async {
+            let app = TestApp::new().await;
+            let email = String::from("mycorrect@email.com");
+            let password = String::from("mylongcorrectvalidpass");
+            let to_login = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&email.clone()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&password.clone()).unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&to_login).await;
+            match (&response.status().as_u16(), &401) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::Some(
+                                format_args!("Failed with {0:?}", to_login),
+                            ),
+                        );
+                    }
+                }
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "login::should_return_200_if_valid_credentials_and_2fa_disabled"]
+    #[doc(hidden)]
+    pub const should_return_200_if_valid_credentials_and_2fa_disabled: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "login::should_return_200_if_valid_credentials_and_2fa_disabled",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/login.rs",
+            start_line: 116usize,
+            start_col: 10usize,
+            end_line: 116usize,
+            end_col: 65usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(
+                should_return_200_if_valid_credentials_and_2fa_disabled(),
+            ),
+        ),
+    };
+    fn should_return_200_if_valid_credentials_and_2fa_disabled() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(false));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let auth_cookie = response
+                .cookies()
+                .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+                .expect("No auth cookie found");
+            if !!auth_cookie.value().is_empty() {
+                ::core::panicking::panic(
+                    "assertion failed: !auth_cookie.value().is_empty()",
+                )
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "login::should_return_206_if_valid_credentials_and_2fa_enabled"]
+    #[doc(hidden)]
+    pub const should_return_206_if_valid_credentials_and_2fa_enabled: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "login::should_return_206_if_valid_credentials_and_2fa_enabled",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/login.rs",
+            start_line: 149usize,
+            start_col: 10usize,
+            end_line: 149usize,
+            end_col: 64usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(
+                should_return_206_if_valid_credentials_and_2fa_enabled(),
+            ),
+        ),
+    };
+    fn should_return_206_if_valid_credentials_and_2fa_enabled() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let email = Email::parse(random_email.clone()).unwrap();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            match (&response.status().as_u16(), &206) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let response = response
+                .json::<TwoFactorAuthResponse>()
+                .await
+                .expect("Could not deserialize response body to TwoFactorAuthResponse");
+            if !response.message.eq("2FA required") {
+                ::core::panicking::panic(
+                    "assertion failed: response.message.eq(\"2FA required\")",
+                )
+            }
+            if !TwoFACode::parse(response.login_attempt_id).is_ok() {
+                ::core::panicking::panic(
+                    "assertion failed: TwoFACode::parse(response.login_attempt_id).is_ok()",
+                )
+            }
+            if !app.two_fa_code_store.read().await.get_code(&email).await.is_ok() {
+                ::core::panicking::panic(
+                    "assertion failed: app.two_fa_code_store.read().await.get_code(&email).await.is_ok()",
+                )
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+}
+mod logout {
+    use auth_service::utils::constants::JWT_COOKIE_NAME;
+    use reqwest::Url;
+    use crate::helpers::{get_random_email, TestApp};
+    extern crate test;
+    #[rustc_test_marker = "logout::should_return_200_if_valid_jwt_cookie"]
+    #[doc(hidden)]
+    pub const should_return_200_if_valid_jwt_cookie: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("logout::should_return_200_if_valid_jwt_cookie"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/logout.rs",
+            start_line: 7usize,
+            start_col: 10usize,
+            end_line: 7usize,
+            end_col: 47usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_200_if_valid_jwt_cookie()),
+        ),
+    };
+    fn should_return_200_if_valid_jwt_cookie() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(false));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            let auth_cookie = response
+                .cookies()
+                .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+                .expect("No auth cookie found");
+            let token = auth_cookie.value().to_owned();
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let response = app.post_logout().await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let result = app
+                .banned_token_store
+                .read()
+                .await
+                .is_banned_token(&token)
+                .await;
+            if !result.is_ok() {
+                ::core::panicking::panic("assertion failed: result.is_ok()")
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "logout::should_return_400_if_logout_called_twice_in_a_row"]
+    #[doc(hidden)]
+    pub const should_return_400_if_logout_called_twice_in_a_row: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "logout::should_return_400_if_logout_called_twice_in_a_row",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/logout.rs",
+            start_line: 50usize,
+            start_col: 10usize,
+            end_line: 50usize,
+            end_col: 59usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(
+                should_return_400_if_logout_called_twice_in_a_row(),
+            ),
+        ),
+    };
+    fn should_return_400_if_logout_called_twice_in_a_row() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(false));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let response = app.post_logout().await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let response = app.post_logout().await;
+            match (&response.status().as_u16(), &400) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "logout::should_return_400_if_jwt_cookie_missing"]
+    #[doc(hidden)]
+    pub const should_return_400_if_jwt_cookie_missing: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "logout::should_return_400_if_jwt_cookie_missing",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/logout.rs",
+            start_line: 80usize,
+            start_col: 10usize,
+            end_line: 80usize,
+            end_col: 49usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_400_if_jwt_cookie_missing()),
+        ),
+    };
+    fn should_return_400_if_jwt_cookie_missing() {
+        let body = async {
+            let app = TestApp::new().await;
+            let response = app.post_logout().await;
+            match (&response.status().as_u16(), &400) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "logout::should_return_401_if_invalid_token"]
+    #[doc(hidden)]
+    pub const should_return_401_if_invalid_token: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("logout::should_return_401_if_invalid_token"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/logout.rs",
+            start_line: 87usize,
+            start_col: 10usize,
+            end_line: 87usize,
+            end_col: 44usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_401_if_invalid_token()),
+        ),
+    };
+    fn should_return_401_if_invalid_token() {
+        let body = async {
+            let app = TestApp::new().await;
+            app.cookie_jar
+                .add_cookie_str(
+                    &::alloc::__export::must_use({
+                        ::alloc::fmt::format(
+                            format_args!(
+                                "{0}=invalid; HttpOnly; SameSite=Lax; Secure; Path=/",
+                                JWT_COOKIE_NAME,
+                            ),
+                        )
+                    }),
+                    &Url::parse("http://127.0.0.1").expect("Failed to parse URL"),
+                );
+            let response = app.post_logout().await;
+            match (&response.status().as_u16(), &401) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+}
+mod root {
+    use crate::helpers::TestApp;
+    extern crate test;
+    #[rustc_test_marker = "root::root_returns_auth_ui"]
+    #[doc(hidden)]
+    pub const root_returns_auth_ui: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("root::root_returns_auth_ui"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/root.rs",
+            start_line: 5usize,
+            start_col: 10usize,
+            end_line: 5usize,
+            end_col: 30usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(root_returns_auth_ui()),
+        ),
+    };
+    fn root_returns_auth_ui() {
+        let body = async {
+            let app = TestApp::new().await;
+            let response = app.get_root().await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            match (&response.headers().get("content-type").unwrap(), &"text/html") {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+}
+mod signup {
+    use crate::helpers::{get_random_email, TestApp};
+    use auth_service::{routes::SignupResponse, ErrorResponse};
+    extern crate test;
+    #[rustc_test_marker = "signup::should_return_422_if_malformed_input"]
+    #[doc(hidden)]
+    pub const should_return_422_if_malformed_input: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("signup::should_return_422_if_malformed_input"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/signup.rs",
+            start_line: 5usize,
+            start_col: 10usize,
+            end_line: 5usize,
+            end_col: 46usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_422_if_malformed_input()),
+        ),
+    };
+    fn should_return_422_if_malformed_input() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let test_cases = [
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("password").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("pas").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("ema").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(("req").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("password").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                    let _ = object
+                        .insert(
+                            ("must_fail").into(),
+                            ::serde_json::to_value(&"with_this_extra_field").unwrap(),
+                        );
+                    object
+                }),
+            ];
+            for test_case in test_cases.iter() {
+                let response = app.post_signup(test_case).await;
+                match (&response.status().as_u16(), &422) {
+                    (left_val, right_val) => {
+                        if !(*left_val == *right_val) {
+                            let kind = ::core::panicking::AssertKind::Eq;
+                            ::core::panicking::assert_failed(
+                                kind,
+                                &*left_val,
+                                &*right_val,
+                                ::core::option::Option::Some(
+                                    format_args!("Failed for input: {0:?}", test_case),
+                                ),
+                            );
+                        }
+                    }
+                };
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "signup::should_return_201_if_valid_input"]
+    #[doc(hidden)]
+    pub const should_return_201_if_valid_input: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("signup::should_return_201_if_valid_input"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/signup.rs",
+            start_line: 51usize,
+            start_col: 10usize,
+            end_line: 51usize,
+            end_col: 42usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_201_if_valid_input()),
+        ),
+    };
+    fn should_return_201_if_valid_input() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let u = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                object
+            });
+            let response = app.post_signup(&u).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let expected_response = SignupResponse {
+                message: "User created successfully!".to_owned(),
+            };
+            match (
+                &response
+                    .json::<SignupResponse>()
+                    .await
+                    .expect("Could not deserialize response body to UserBody"),
+                &expected_response,
+            ) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "signup::should_return_400_if_invalid_input"]
+    #[doc(hidden)]
+    pub const should_return_400_if_invalid_input: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("signup::should_return_400_if_invalid_input"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/signup.rs",
+            start_line: 82usize,
+            start_col: 10usize,
+            end_line: 82usize,
+            end_col: 44usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_400_if_invalid_input()),
+        ),
+    };
+    fn should_return_400_if_invalid_input() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let test_cases = [
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("password").into(),
+                            ::serde_json::to_value(&"short").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&"noat").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("password").into(),
+                            ::serde_json::to_value(&"longenoughforpassword").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&"noat").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("password").into(),
+                            ::serde_json::to_value(&"short").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+            ];
+            for test_case in test_cases.iter() {
+                let response = app.post_signup(test_case).await;
+                match (&response.status().as_u16(), &400) {
+                    (left_val, right_val) => {
+                        if !(*left_val == *right_val) {
+                            let kind = ::core::panicking::AssertKind::Eq;
+                            ::core::panicking::assert_failed(
+                                kind,
+                                &*left_val,
+                                &*right_val,
+                                ::core::option::Option::Some(
+                                    format_args!("Failed for input: {0:?}", test_case),
+                                ),
+                            );
+                        }
+                    }
+                };
+                match (
+                    &response
+                        .json::<ErrorResponse>()
+                        .await
+                        .expect("Could not deserialize response body to ErrorResponse")
+                        .error,
+                    &"Invalid credentials".to_owned(),
+                ) {
+                    (left_val, right_val) => {
+                        if !(*left_val == *right_val) {
+                            let kind = ::core::panicking::AssertKind::Eq;
+                            ::core::panicking::assert_failed(
+                                kind,
+                                &*left_val,
+                                &*right_val,
+                                ::core::option::Option::None,
+                            );
+                        }
+                    }
+                };
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "signup::should_return_409_if_email_already_exists"]
+    #[doc(hidden)]
+    pub const should_return_409_if_email_already_exists: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "signup::should_return_409_if_email_already_exists",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/signup.rs",
+            start_line: 131usize,
+            start_col: 10usize,
+            end_line: 131usize,
+            end_col: 51usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_409_if_email_already_exists()),
+        ),
+    };
+    fn should_return_409_if_email_already_exists() {
+        let body = async {
+            let app = TestApp::new().await;
+            let u = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&"vas@email").unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"longenougpass").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                object
+            });
+            let response = app.post_signup(&u.clone()).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::Some(
+                                format_args!("Failed to create user."),
+                            ),
+                        );
+                    }
+                }
+            };
+            let response = app.post_signup(&u.clone()).await;
+            match (&response.status().as_u16(), &409) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::Some(
+                                format_args!("Failed to detect duplicate email."),
+                            ),
+                        );
+                    }
+                }
+            };
+            match (
+                &response
+                    .json::<ErrorResponse>()
+                    .await
+                    .expect("Could not deserialize response body to ErrorResponse")
+                    .error,
+                &"User already exists".to_owned(),
+            ) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+}
+mod verify_2fa {
+    use crate::helpers::{get_random_email, TestApp};
+    use auth_service::{
+        domain::{Email, TwoFACode},
+        routes::TwoFactorAuthResponse, utils::constants::JWT_COOKIE_NAME,
+    };
+    use uuid::Uuid;
+    extern crate test;
+    #[rustc_test_marker = "verify_2fa::should_return_422_if_malformed_input"]
+    #[doc(hidden)]
+    pub const should_return_422_if_malformed_input: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "verify_2fa::should_return_422_if_malformed_input",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_2fa.rs",
+            start_line: 11usize,
+            start_col: 10usize,
+            end_line: 11usize,
+            end_col: 46usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_422_if_malformed_input()),
+        ),
+    };
+    fn should_return_422_if_malformed_input() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let test_cases = [
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&"vas@gmail.com").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("loginAttemptId").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("2FACode").into(),
+                            ::serde_json::to_value(&"true1234").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("notdefined").into(),
+                            ::serde_json::to_value(&"extra").unwrap(),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&"vas@gmail.com").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("loginAttemptId").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("2FACode").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("password").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(("2FACode").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("2FACode").into(),
+                            ::serde_json::to_value(&"123456").unwrap(),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("loginAttemptId").into(),
+                            ::serde_json::Value::Bool(true),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("login").into(),
+                            ::serde_json::to_value(&"password123").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("ema").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(("req").into(), ::serde_json::Value::Bool(true));
+                    object
+                }),
+            ];
+            for test_case in test_cases.iter() {
+                {
+                    ::std::io::_print(format_args!("{0:?}\n", test_case));
+                };
+                let response = app.post_verify_2fa(test_case).await;
+                match (&response.status().as_u16(), &422) {
+                    (left_val, right_val) => {
+                        if !(*left_val == *right_val) {
+                            let kind = ::core::panicking::AssertKind::Eq;
+                            ::core::panicking::assert_failed(
+                                kind,
+                                &*left_val,
+                                &*right_val,
+                                ::core::option::Option::Some(
+                                    format_args!("Failed for input: {0:?}", test_case),
+                                ),
+                            );
+                        }
+                    }
+                };
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "verify_2fa::should_return_400_if_invalid_input"]
+    #[doc(hidden)]
+    pub const should_return_400_if_invalid_input: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("verify_2fa::should_return_400_if_invalid_input"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_2fa.rs",
+            start_line: 62usize,
+            start_col: 10usize,
+            end_line: 62usize,
+            end_col: 44usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_400_if_invalid_input()),
+        ),
+    };
+    fn should_return_400_if_invalid_input() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let test_cases = [
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("loginAttemptId").into(),
+                            ::serde_json::to_value(&"not-uuid-at-all").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("2FACode").into(),
+                            ::serde_json::to_value(&"123456").unwrap(),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("loginAttemptId").into(),
+                            ::serde_json::to_value(&"not-uuid-at-all").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("2FACode").into(),
+                            ::serde_json::to_value(&"123456").unwrap(),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&random_email).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("loginAttemptId").into(),
+                            ::serde_json::to_value(&Uuid::new_v4()).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("2FACode").into(),
+                            ::serde_json::to_value(&"1").unwrap(),
+                        );
+                    object
+                }),
+                ::serde_json::Value::Object({
+                    let mut object = ::serde_json::Map::new();
+                    let _ = object
+                        .insert(
+                            ("email").into(),
+                            ::serde_json::to_value(&"bademaildotcom").unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("loginAttemptId").into(),
+                            ::serde_json::to_value(&Uuid::new_v4()).unwrap(),
+                        );
+                    let _ = object
+                        .insert(
+                            ("2FACode").into(),
+                            ::serde_json::to_value(&"123456").unwrap(),
+                        );
+                    object
+                }),
+            ];
+            for test_case in test_cases.iter() {
+                {
+                    ::std::io::_print(format_args!("{0:?}\n", test_case));
+                };
+                let response = app.post_verify_2fa(test_case).await;
+                match (&response.status().as_u16(), &400) {
+                    (left_val, right_val) => {
+                        if !(*left_val == *right_val) {
+                            let kind = ::core::panicking::AssertKind::Eq;
+                            ::core::panicking::assert_failed(
+                                kind,
+                                &*left_val,
+                                &*right_val,
+                                ::core::option::Option::Some(
+                                    format_args!("Failed for input: {0:?}", test_case),
+                                ),
+                            );
+                        }
+                    }
+                };
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "verify_2fa::should_return_401_if_incorrect_credentials"]
+    #[doc(hidden)]
+    pub const should_return_401_if_incorrect_credentials: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "verify_2fa::should_return_401_if_incorrect_credentials",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_2fa.rs",
+            start_line: 101usize,
+            start_col: 10usize,
+            end_line: 101usize,
+            end_col: 52usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_401_if_incorrect_credentials()),
+        ),
+    };
+    fn should_return_401_if_incorrect_credentials() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            match (&response.status().as_u16(), &206) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let response = response
+                .json::<TwoFactorAuthResponse>()
+                .await
+                .expect("Could not deserialize response body to TwoFactorAuthResponse");
+            if !response.message.eq("2FA required") {
+                ::core::panicking::panic(
+                    "assertion failed: response.message.eq(\"2FA required\")",
+                )
+            }
+            if !TwoFACode::parse(response.login_attempt_id).is_ok() {
+                ::core::panicking::panic(
+                    "assertion failed: TwoFACode::parse(response.login_attempt_id).is_ok()",
+                )
+            }
+            let verify_2fa_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("loginAttemptId").into(),
+                        ::serde_json::to_value(&Uuid::new_v4()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("2FACode").into(),
+                        ::serde_json::to_value(&"000000").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_verify_2fa(&verify_2fa_body).await;
+            match (&response.status().as_u16(), &401) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "verify_2fa::should_return_401_if_old_code"]
+    #[doc(hidden)]
+    pub const should_return_401_if_old_code: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("verify_2fa::should_return_401_if_old_code"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_2fa.rs",
+            start_line: 142usize,
+            start_col: 10usize,
+            end_line: 142usize,
+            end_col: 39usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_401_if_old_code()),
+        ),
+    };
+    fn should_return_401_if_old_code() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email.clone()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response1 = app.post_login(&login_body).await;
+            let (old_id, old_code) = app
+                .two_fa_code_store
+                .read()
+                .await
+                .get_code(&Email::parse(random_email.clone()).unwrap())
+                .await
+                .unwrap();
+            let response2 = app.post_login(&login_body).await;
+            match (&response2.status().as_u16(), &206) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let response = response1
+                .json::<TwoFactorAuthResponse>()
+                .await
+                .expect("Could not deserialize response body to TwoFactorAuthResponse");
+            if !response.message.eq("2FA required") {
+                ::core::panicking::panic(
+                    "assertion failed: response.message.eq(\"2FA required\")",
+                )
+            }
+            if !TwoFACode::parse(response.login_attempt_id.clone()).is_ok() {
+                ::core::panicking::panic(
+                    "assertion failed: TwoFACode::parse(response.login_attempt_id.clone()).is_ok()",
+                )
+            }
+            let verify_2fa_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email.clone()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("loginAttemptId").into(),
+                        ::serde_json::to_value(&old_id.as_ref().to_owned()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("2FACode").into(),
+                        ::serde_json::to_value(&old_code.as_ref().to_owned()).unwrap(),
+                    );
+                object
+            });
+            let response = app.post_verify_2fa(&verify_2fa_body).await;
+            match (&response.status().as_u16(), &401) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "verify_2fa::should_return_200_if_correct_code"]
+    #[doc(hidden)]
+    pub const should_return_200_if_correct_code: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("verify_2fa::should_return_200_if_correct_code"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_2fa.rs",
+            start_line: 194usize,
+            start_col: 10usize,
+            end_line: 194usize,
+            end_col: 43usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_200_if_correct_code()),
+        ),
+    };
+    fn should_return_200_if_correct_code() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email.clone()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            let (id, code) = app
+                .two_fa_code_store
+                .read()
+                .await
+                .get_code(&Email::parse(random_email.clone()).unwrap())
+                .await
+                .unwrap();
+            let response = response
+                .json::<TwoFactorAuthResponse>()
+                .await
+                .expect("Could not deserialize response body to TwoFactorAuthResponse");
+            if !response.message.eq("2FA required") {
+                ::core::panicking::panic(
+                    "assertion failed: response.message.eq(\"2FA required\")",
+                )
+            }
+            if !TwoFACode::parse(response.login_attempt_id.clone()).is_ok() {
+                ::core::panicking::panic(
+                    "assertion failed: TwoFACode::parse(response.login_attempt_id.clone()).is_ok()",
+                )
+            }
+            let verify_2fa_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email.clone()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("loginAttemptId").into(),
+                        ::serde_json::to_value(&id.as_ref().to_owned()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("2FACode").into(),
+                        ::serde_json::to_value(&code.as_ref().to_owned()).unwrap(),
+                    );
+                object
+            });
+            let response = app.post_verify_2fa(&verify_2fa_body).await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            response
+                .cookies()
+                .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+                .expect("No auth cookie found");
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "verify_2fa::should_return_401_if_same_code_twice"]
+    #[doc(hidden)]
+    pub const should_return_401_if_same_code_twice: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "verify_2fa::should_return_401_if_same_code_twice",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_2fa.rs",
+            start_line: 248usize,
+            start_col: 10usize,
+            end_line: 248usize,
+            end_col: 46usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_401_if_same_code_twice()),
+        ),
+    };
+    fn should_return_401_if_same_code_twice() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(true));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email.clone()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            app.post_login(&login_body).await;
+            let (id, code) = app
+                .two_fa_code_store
+                .read()
+                .await
+                .get_code(&Email::parse(random_email.clone()).unwrap())
+                .await
+                .unwrap();
+            let verify_2fa_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email.clone()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("loginAttemptId").into(),
+                        ::serde_json::to_value(&id.as_ref().to_owned()).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("2FACode").into(),
+                        ::serde_json::to_value(&code.as_ref().to_owned()).unwrap(),
+                    );
+                object
+            });
+            let response = app.post_verify_2fa(&verify_2fa_body).await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let response = app.post_verify_2fa(&verify_2fa_body).await;
+            match (&response.status().as_u16(), &401) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+}
+mod verify_token {
+    use crate::helpers::{get_random_email, TestApp};
+    use auth_service::utils::constants::JWT_COOKIE_NAME;
+    use serde_json::json;
+    extern crate test;
+    #[rustc_test_marker = "verify_token::should_return_200_valid_token"]
+    #[doc(hidden)]
+    pub const should_return_200_valid_token: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName("verify_token::should_return_200_valid_token"),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_token.rs",
+            start_line: 6usize,
+            start_col: 10usize,
+            end_line: 6usize,
+            end_col: 39usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_200_valid_token()),
+        ),
+    };
+    fn should_return_200_valid_token() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(false));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let auth_cookie = response
+                .cookies()
+                .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+                .expect("No auth cookie found");
+            let reqwest = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("token").into(),
+                        ::serde_json::to_value(&auth_cookie.value().to_owned()).unwrap(),
+                    );
+                object
+            });
+            let response = app.post_verify_token(&reqwest).await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "verify_token::should_return_401_if_invalid_token"]
+    #[doc(hidden)]
+    pub const should_return_401_if_invalid_token: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "verify_token::should_return_401_if_invalid_token",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_token.rs",
+            start_line: 44usize,
+            start_col: 10usize,
+            end_line: 44usize,
+            end_col: 44usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_401_if_invalid_token()),
+        ),
+    };
+    fn should_return_401_if_invalid_token() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(false));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let auth_cookie = response
+                .cookies()
+                .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+                .expect("No auth cookie found");
+            let mut token = auth_cookie.value().to_owned();
+            token.push_str("bre.akit");
+            let reqwest = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(("token").into(), ::serde_json::to_value(&token).unwrap());
+                object
+            });
+            let response = app.post_verify_token(&reqwest).await;
+            match (&response.status().as_u16(), &401) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "verify_token::should_return_422_if_malformed_input"]
+    #[doc(hidden)]
+    pub const should_return_422_if_malformed_input: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "verify_token::should_return_422_if_malformed_input",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_token.rs",
+            start_line: 86usize,
+            start_col: 10usize,
+            end_line: 86usize,
+            end_col: 46usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_422_if_malformed_input()),
+        ),
+    };
+    fn should_return_422_if_malformed_input() {
+        let body = async {
+            let app = TestApp::new().await;
+            let request = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(("toke").into(), ::serde_json::to_value(&"token").unwrap());
+                object
+            });
+            let response = app.post_verify_token(&request).await;
+            match (&response.status().as_u16(), &422) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+    extern crate test;
+    #[rustc_test_marker = "verify_token::should_return_401_if_banned_token"]
+    #[doc(hidden)]
+    pub const should_return_401_if_banned_token: test::TestDescAndFn = test::TestDescAndFn {
+        desc: test::TestDesc {
+            name: test::StaticTestName(
+                "verify_token::should_return_401_if_banned_token",
+            ),
+            ignore: false,
+            ignore_message: ::core::option::Option::None,
+            source_file: "tests/api/verify_token.rs",
+            start_line: 96usize,
+            start_col: 10usize,
+            end_line: 96usize,
+            end_col: 43usize,
+            compile_fail: false,
+            no_run: false,
+            should_panic: test::ShouldPanic::No,
+            test_type: test::TestType::Unknown,
+        },
+        testfn: test::StaticTestFn(
+            #[coverage(off)]
+            || test::assert_test_result(should_return_401_if_banned_token()),
+        ),
+    };
+    fn should_return_401_if_banned_token() {
+        let body = async {
+            let app = TestApp::new().await;
+            let random_email = get_random_email();
+            let signup_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                let _ = object
+                    .insert(("requires2FA").into(), ::serde_json::Value::Bool(false));
+                object
+            });
+            let response = app.post_signup(&signup_body).await;
+            match (&response.status().as_u16(), &201) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let login_body = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(
+                        ("email").into(),
+                        ::serde_json::to_value(&random_email).unwrap(),
+                    );
+                let _ = object
+                    .insert(
+                        ("password").into(),
+                        ::serde_json::to_value(&"password123").unwrap(),
+                    );
+                object
+            });
+            let response = app.post_login(&login_body).await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let auth_cookie = response
+                .cookies()
+                .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
+                .expect("No auth cookie found");
+            let response = app.post_logout().await;
+            match (&response.status().as_u16(), &200) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            };
+            let token = auth_cookie.value().to_owned();
+            let reqwest = ::serde_json::Value::Object({
+                let mut object = ::serde_json::Map::new();
+                let _ = object
+                    .insert(("token").into(), ::serde_json::to_value(&token).unwrap());
+                object
+            });
+            let response = app.post_verify_token(&reqwest).await;
+            match (&response.status().as_u16(), &401) {
+                (left_val, right_val) => {
+                    if !(*left_val == *right_val) {
+                        let kind = ::core::panicking::AssertKind::Eq;
+                        ::core::panicking::assert_failed(
+                            kind,
+                            &*left_val,
+                            &*right_val,
+                            ::core::option::Option::None,
+                        );
+                    }
+                }
+            }
+        };
+        let mut body = body;
+        #[allow(unused_mut)]
+        let mut body = unsafe {
+            ::tokio::macros::support::Pin::new_unchecked(&mut body)
+        };
+        let body: ::core::pin::Pin<&mut dyn ::core::future::Future<Output = ()>> = body;
+        #[allow(
+            clippy::expect_used,
+            clippy::diverging_sub_expression,
+            clippy::needless_return,
+            clippy::unwrap_in_result
+        )]
+        {
+            return tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed building the Runtime")
+                .block_on(body);
+        }
+    }
+}
+#[rustc_main]
+#[coverage(off)]
+#[doc(hidden)]
+pub fn main() -> () {
+    extern crate test;
+    test::test_main_static(
+        &[
+            &should_return_200_if_valid_credentials_and_2fa_disabled,
+            &should_return_206_if_valid_credentials_and_2fa_enabled,
+            &should_return_400_if_invalid_input,
+            &should_return_401_if_incorrect_credentials,
+            &should_return_422_if_malformed_credentials,
+            &should_return_200_if_valid_jwt_cookie,
+            &should_return_400_if_jwt_cookie_missing,
+            &should_return_400_if_logout_called_twice_in_a_row,
+            &should_return_401_if_invalid_token,
+            &root_returns_auth_ui,
+            &should_return_201_if_valid_input,
+            &should_return_400_if_invalid_input,
+            &should_return_409_if_email_already_exists,
+            &should_return_422_if_malformed_input,
+            &should_return_200_if_correct_code,
+            &should_return_400_if_invalid_input,
+            &should_return_401_if_incorrect_credentials,
+            &should_return_401_if_old_code,
+            &should_return_401_if_same_code_twice,
+            &should_return_422_if_malformed_input,
+            &should_return_200_valid_token,
+            &should_return_401_if_banned_token,
+            &should_return_401_if_invalid_token,
+            &should_return_422_if_malformed_input,
+        ],
+    )
+}

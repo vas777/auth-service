@@ -138,21 +138,35 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
+
+    pub async fn clean_up(&mut self) {
+        delete_database(&self.db_name).await;
+        self.clean_up_called = true;
+    }
+
 }
 // TODO: think about this
 // because test is asycn so we have runtime 
 // and Runtime::new will try to create new runtime within async test that has runtime ?
 // Cannot start a runtime from within a runtime. This happens because a function (like `block_on`)
 //        attempted to block the current thread while the thread is being used to drive asynchronous tasks.
+// impl Drop for TestApp {
+//     fn drop(&mut self) {
+//         // if self.clean_up_called {
+//         //     panic!()
+//         // }
+//         let rt = tokio::runtime::Runtime::new().unwrap();
+//         rt.block_on(async {
+//             delete_database(&self.db_name).await;
+//         })
+//     }
+// }
+
 impl Drop for TestApp {
     fn drop(&mut self) {
-        // if self.clean_up_called {
-        //     panic!()
-        // }
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            delete_database(&self.db_name).await;
-        })
+        if !self.clean_up_called {
+            panic!()
+        }
     }
 }
 
