@@ -6,10 +6,12 @@ use auth_service::{
 };
 
 use uuid::Uuid;
+use test_helpers::test_help;
 
+#[test_help]
 #[tokio::test]
 async fn should_return_422_if_malformed_input() {
-    let app = TestApp::new().await;
+    
     let random_email = get_random_email();
 
     let test_cases = [
@@ -58,9 +60,10 @@ async fn should_return_422_if_malformed_input() {
     }
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_400_if_invalid_input() {
-    let app = TestApp::new().await;
+    
     let random_email = get_random_email();
     let test_cases = [
         serde_json::json!({
@@ -97,9 +100,10 @@ async fn should_return_400_if_invalid_input() {
     }
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_401_if_incorrect_credentials() {
-    let app = TestApp::new().await;
+    
 
     let random_email = get_random_email();
     let signup_body = serde_json::json!({
@@ -138,10 +142,11 @@ async fn should_return_401_if_incorrect_credentials() {
     assert_eq!(response.status().as_u16(), 401);
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_401_if_old_code() {
     // Call login twice. Then, attempt to call verify-fa with the 2FA code from the first login requet. This should fail.
-    let app = TestApp::new().await;
+    
 
     let random_email = get_random_email();
     let signup_body = serde_json::json!({
@@ -190,10 +195,11 @@ async fn should_return_401_if_old_code() {
     assert_eq!(response.status().as_u16(), 401);
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_200_if_correct_code() {
     // Make sure to assert the auth cookie gets set
-    let app = TestApp::new().await;
+    
 
     let random_email = get_random_email();
     let signup_body = serde_json::json!({
@@ -244,9 +250,10 @@ async fn should_return_200_if_correct_code() {
         .expect("No auth cookie found");
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_401_if_same_code_twice() {
-    let app = TestApp::new().await;
+    
 
     let random_email = get_random_email();
     let signup_body = serde_json::json!({

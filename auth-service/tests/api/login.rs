@@ -5,12 +5,16 @@ use auth_service::{
     utils::constants::JWT_COOKIE_NAME,
 };
 use serde::Serialize;
-use test_helpers::log_call;
+use test_helpers::test_help;
 
+#[test_help]
 #[tokio::test]
-#[log_call(clean)]
 async fn should_return_422_if_malformed_credentials() {
-    let mut app = TestApp::new().await;
+    // TODO with this leads to sig abort ?
+    // 
+    // let mut app = TestApp::new().await;
+    // let mut app = TestApp::new().await;
+
 
     let random_email = get_random_email();
 
@@ -47,14 +51,14 @@ async fn should_return_422_if_malformed_credentials() {
             test_case
         );
     };
-    // app.clean_up().await;
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_400_if_invalid_input() {
     // Call the log-in route with invalid credentials and assert that a
     // 400 HTTP status code is returned along with the appropriate error message.
-    let app = TestApp::new().await;
+    
     // TODO wouldn't it be better if we had structure here ?
     #[derive(Serialize, Debug)]
     struct LoginRequest {
@@ -89,11 +93,12 @@ async fn should_return_400_if_invalid_input() {
     }
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_401_if_incorrect_credentials() {
     // Call the log-in route with incorrect credentials and assert
     // that a 401 HTTP status code is returned along with the appropriate error message.
-    let app = TestApp::new().await;
+    
 
     let email = String::from("mycorrect@email.com");
     let password = String::from("mylongcorrectvalidpass");
@@ -112,9 +117,10 @@ async fn should_return_401_if_incorrect_credentials() {
     )
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_200_if_valid_credentials_and_2fa_disabled() {
-    let app = TestApp::new().await;
+    
 
     let random_email = get_random_email();
 
@@ -145,9 +151,10 @@ async fn should_return_200_if_valid_credentials_and_2fa_disabled() {
     assert!(!auth_cookie.value().is_empty());
 }
 
+#[test_help]
 #[tokio::test]
 async fn should_return_206_if_valid_credentials_and_2fa_enabled() {
-    let app = TestApp::new().await;
+    
 
     let random_email = get_random_email();
     let email = Email::parse(random_email.clone()).unwrap();
