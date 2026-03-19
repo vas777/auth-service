@@ -1,12 +1,8 @@
 use auth_service::{
-    app_state::{AppState, BannedTokens, UserStoreType},
-    get_postgres_pool,
-    services::{
+    Application, app_state::{AppState, BannedTokens, UserStoreType}, get_postgres_pool, get_redis_client, services::{
         HashmapTwoFACodeStore, HashmapUserStore, HashsetBannedTokenStore, MockEmailClient,
         PostgresUserStore,
-    },
-    utils::constants::{prod, DATABASE_URL},
-    Application,
+    }, utils::constants::{DATABASE_URL, REDIS_HOST_NAME, prod}
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -44,4 +40,11 @@ async fn configure_postgresql() -> PgPool {
         .expect("Failed to run migrations");
 
     pg_pool
+}
+
+fn configure_redis() -> redis::Connection {
+    get_redis_client(REDIS_HOST_NAME.to_owned())
+        .expect("Failed to get Redis client")
+        .get_connection()
+        .expect("Failed to get Redis connection")
 }
