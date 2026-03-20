@@ -24,7 +24,7 @@ pub async fn logout(
             .banned_token_store
             .write()
             .await
-            .add_banned_token(&token)
+            .add_banned_token(token)
             .await
             .map_err(|_| AuthAPIError::UnexpectedError)?;
 

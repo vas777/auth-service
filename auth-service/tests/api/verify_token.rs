@@ -40,6 +40,7 @@ async fn should_return_200_valid_token() {
 
     let response = app.post_verify_token(&reqwest).await;
     assert_eq!(response.status().as_u16(), 200)
+
 }
 
 #[test_help]

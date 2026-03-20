@@ -1,8 +1,8 @@
 use auth_service::services::{
-    HashmapTwoFACodeStore, HashsetBannedTokenStore, MockEmailClient, PostgresUserStore,
+    HashmapTwoFACodeStore, MockEmailClient, PostgresUserStore, RedisBannedTokenStore,
 };
-use auth_service::utils::constants::{test, DATABASE_URL};
-use auth_service::Application;
+use auth_service::utils::constants::{DATABASE_URL, REDIS_HOST_NAME, test};
+use auth_service::{Application, get_redis_client};
 use auth_service::{app_state::*, get_postgres_pool};
 use reqwest::cookie::Jar;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
@@ -31,8 +31,10 @@ impl TestApp {
         let user_store: UserStoreType = Arc::new(RwLock::new(PostgresUserStore::new(
             configure_postgresql(&db_name).await,
         )));
-        let banned_token_store: BannedTokens =
-            Arc::new(RwLock::new(HashsetBannedTokenStore::default()));
+
+        let redis = get_redis_client(REDIS_HOST_NAME.to_string()).unwrap().get_connection().unwrap();
+        // TODO : why is this correct ? are we just compromising or is it really necessary ?
+        let banned_token_store = Arc::new(RwLock::new(RedisBannedTokenStore::new(Arc::new(RwLock::new(redis)))));
         let two_fa_code_store = Arc::new(RwLock::new(HashmapTwoFACodeStore::default()));
         let email_client = Arc::new(RwLock::new(MockEmailClient));
         let app_state = AppState::new(
