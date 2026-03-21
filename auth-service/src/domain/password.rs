@@ -53,14 +53,12 @@ impl HashedPassword {
 
             Argon2::default()
                 .verify_password(password_candidate.as_bytes(), &expected_password_hash)
-                .map_err(Box::new)
+                .map_err(|e|e.into())
         })
-        .await?;
-
-        match res {
-            Ok(()) => Ok(()),
-            Err(e) => Err(Box::new(e)),
-        }
+        .await;
+        // TODO: interesting wiht .map_err(|e|e.into()) res? works 
+        // with .map_err(Box::new) res? does not work
+        res?
     }
 }
 
@@ -82,14 +80,11 @@ async fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error +
         .hash_password(password.as_bytes(), &salt)?
         .to_string();
 
-        Ok::<String, Box<dyn Error + Send + Sync>>(password_hash)
+        Ok(password_hash)
     })
     .await?;
 
-    match res {
-        Ok(v) => Ok(v),
-        Err(e) => Err(e),
-    }
+    res
 }
 
 impl From<PasswordHash<'_>> for HashedPassword {
@@ -218,7 +213,7 @@ mod tests {
             .tests(10) // Set your custom number of test runs here
             .quickcheck(property as fn(ValidPasswordFixture) -> bool);
     }
-
+    // TODO : check this
     // #[test]
     // fn async_valid_password_are_parsed_successfully_closure() {
     //     let rt = tokio::runtime::Runtime::new().unwrap();
