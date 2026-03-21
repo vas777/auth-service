@@ -22,6 +22,8 @@ fn set_db_url() -> String {
     let secret = std_env::var(env::DB_URL_ENV_VAR).expect("{DATABASE_URL} must be set.");
     if secret.is_empty() {
         panic!("DATABASE_URL must not be empty.");
+    } else {
+        println!("db {secret}");
     }
     secret
 }

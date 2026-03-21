@@ -23,6 +23,10 @@ while IFS= read -r line; do
   fi
 done < <(grep -v '^#' "$ENV_FILE")
 
+if [[ ! -e ./auth-service/test_helpers ]]; then
+  cp -R ./test_helpers ./auth-service/test_helpers
+fi
+
 # Run docker-compose commands with exported variables
 docker compose build
 docker compose up

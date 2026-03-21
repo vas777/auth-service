@@ -1,5 +1,6 @@
 use auth_service::services::{
-    HashmapTwoFACodeStore, MockEmailClient, PostgresUserStore, RedisBannedTokenStore, RedisTwoFACodeStore,
+    HashmapTwoFACodeStore, MockEmailClient, PostgresUserStore, RedisBannedTokenStore,
+    RedisTwoFACodeStore,
 };
 use auth_service::utils::constants::{test, DATABASE_URL, REDIS_HOST_NAME};
 use auth_service::{app_state::*, get_postgres_pool};
@@ -32,11 +33,12 @@ impl TestApp {
             configure_postgresql(&db_name).await,
         )));
 
-        let redis = Arc::new(
-            RwLock::new(get_redis_client(REDIS_HOST_NAME.to_string())
-            .unwrap()
-            .get_connection()
-            .unwrap()));
+        let redis = Arc::new(RwLock::new(
+            get_redis_client(REDIS_HOST_NAME.to_string())
+                .unwrap()
+                .get_connection()
+                .unwrap(),
+        ));
 
         // TODO : why is Arc<Rw<Reds<Arc<Rw correct ? are we just compromising or is it really necessary ?
         let banned_token_store = Arc::new(RwLock::new(RedisBannedTokenStore::new(redis.clone())));

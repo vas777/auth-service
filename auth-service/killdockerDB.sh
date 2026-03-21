@@ -1,1 +1,1 @@
-docker kill ps-db ; docker rm ps-db
+docker kill ps-db redis-db ; docker rm ps-db redis-db

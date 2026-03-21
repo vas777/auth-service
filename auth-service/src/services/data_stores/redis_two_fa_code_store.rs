@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use axum::routing::get;
 use redis::{Commands, Connection};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -82,7 +81,7 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
 
         let result = match serde_json::from_str::<(LoginAttemptId, TwoFACode)>(res.as_str()) {
             Ok(v) => (v.0, v.1),
-            Err(_) => return Err(TwoFACodeStoreError::UnexpectedError)
+            Err(_) => return Err(TwoFACodeStoreError::UnexpectedError),
         };
 
         Ok(result)

@@ -1,7 +1,9 @@
 use auth_service::{
-    Application, app_state::{AppState, BannedTokens}, get_postgres_pool, get_redis_client, services::{
-        HashmapTwoFACodeStore, HashsetBannedTokenStore, MockEmailClient, PostgresUserStore, RedisBannedTokenStore, RedisTwoFACodeStore,
-    }, utils::constants::{DATABASE_URL, REDIS_HOST_NAME, prod}
+    app_state::{AppState, BannedTokens},
+    get_postgres_pool, get_redis_client,
+    services::{MockEmailClient, PostgresUserStore, RedisBannedTokenStore, RedisTwoFACodeStore},
+    utils::constants::{prod, DATABASE_URL, REDIS_HOST_NAME},
+    Application,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -15,8 +17,7 @@ async fn main() {
         configure_postgresql().await,
     )));
 
-    let redis = Arc::new(
-            RwLock::new(get_redis_client(REDIS_HOST_NAME.to_string()).unwrap().get_connection().unwrap()));
+    let redis = Arc::new(RwLock::new(configure_redis()));
 
     let banned_token_store: BannedTokens =
         Arc::new(RwLock::new(RedisBannedTokenStore::new(redis.clone())));

@@ -6,12 +6,15 @@ RUN apk add --no-cache musl-dev & cargo install cargo-chef
 WORKDIR /app
 
 FROM chef AS planner
+RUN echo "test"
+COPY test_helpers /test_helpers
 COPY . .
 ENV SQLX_OFFLINE true
 # Capture info needed to build dependencies
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
+COPY --from=planner /test_helpers /test_helpers
 COPY --from=planner /app/recipe.json recipe.json
 # Build dependencies - this is the caching Docker layer!
 RUN cargo chef cook --release --recipe-path recipe.json
