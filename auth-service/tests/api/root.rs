@@ -1,7 +1,6 @@
 use crate::helpers::TestApp;
 use test_helpers::test_help;
 
-
 #[test_help]
 #[tokio::test]
 async fn root_returns_auth_ui() {

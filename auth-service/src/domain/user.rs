@@ -12,9 +12,9 @@ pub struct User {
 impl User {
     pub fn new(email: Email, password_hash: HashedPassword, requires_2fa: bool) -> Self {
         User {
-            email: email,
-            password_hash: password_hash,
-            requires_2fa: requires_2fa,
+            email,
+            password_hash,
+            requires_2fa,
         }
     }
 }

@@ -9,8 +9,8 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct  RedisBannedTokenStore {
-    pub conn: Arc<RwLock<Connection>>,
+pub struct RedisBannedTokenStore {
+    conn: Arc<RwLock<Connection>>,
 }
 
 impl RedisBannedTokenStore {
@@ -26,7 +26,7 @@ impl BannedTokenStore for RedisBannedTokenStore {
         // 2. Call the set_ex command on the Redis connection to set a new key/value pair with an expiration time (TTL).
         // The value should simply be a `true` (boolean value).
         // The expiration time should be set to TOKEN_TTL_SECONDS.
-        // NOTE: The TTL is expected to be a u64 so you will have to cast TOKEN_TTL_SECONDS to a u64. 
+        // NOTE: The TTL is expected to be a u64 so you will have to cast TOKEN_TTL_SECONDS to a u64.
         // Return BannedTokenStoreError::UnexpectedError if casting fails or the call to set_ex fails.
 
         let token_key = get_key(token.as_str());

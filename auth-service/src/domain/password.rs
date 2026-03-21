@@ -13,12 +13,12 @@ impl HashedPassword {
     // Using the provided helper function compute_password_hash.
     pub async fn parse(s: String) -> Result<Self, String> {
         if s.len() < 8 {
-            Err(format!("Password is too short!"))
+            Err("Password is too short!".to_string())
         } else {
             Ok(HashedPassword(
                 compute_password_hash(&s)
                     .await
-                    .map_err(|_| format!("Unexpected error"))?,
+                    .map_err(|_| "Unexpected error".to_string())?,
             ))
         }
     }
@@ -28,7 +28,7 @@ impl HashedPassword {
     // use PasswordHash::new
     pub fn parse_password_hash(hash: String) -> Result<HashedPassword, String> {
         Ok(HashedPassword::from(
-            PasswordHash::new(&hash).map_err(|_| format!("Invalid password?"))?,
+            PasswordHash::new(&hash).map_err(|_| "Invalid password?".to_string())?,
         ))
     }
 
@@ -53,7 +53,7 @@ impl HashedPassword {
 
             Argon2::default()
                 .verify_password(password_candidate.as_bytes(), &expected_password_hash)
-                .map_err(|e| Box::new(e))
+                .map_err(Box::new)
         })
         .await?;
 

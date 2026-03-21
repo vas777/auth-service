@@ -6,8 +6,6 @@ use test_helpers::test_help;
 #[test_help]
 #[tokio::test]
 async fn should_return_200_valid_token() {
-    
-
     let random_email = get_random_email();
 
     let signup_body = serde_json::json!({
@@ -40,13 +38,11 @@ async fn should_return_200_valid_token() {
 
     let response = app.post_verify_token(&reqwest).await;
     assert_eq!(response.status().as_u16(), 200)
-
 }
 
 #[test_help]
 #[tokio::test]
 async fn should_return_401_if_invalid_token() {
-
     let random_email = get_random_email();
 
     let signup_body = serde_json::json!({
@@ -88,7 +84,6 @@ async fn should_return_401_if_invalid_token() {
 #[test_help]
 #[tokio::test]
 async fn should_return_422_if_malformed_input() {
-    
     let request = json!({
         "toke": "token"
     });
@@ -99,8 +94,6 @@ async fn should_return_422_if_malformed_input() {
 #[test_help]
 #[tokio::test]
 async fn should_return_401_if_banned_token() {
-    
-
     let random_email = get_random_email();
 
     let signup_body = serde_json::json!({

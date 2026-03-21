@@ -7,15 +7,18 @@ pub async fn verify_token(
     State(state): State<AppState>,
     Json(request): Json<VerifyTokenRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
-    if state
+    if let Ok(res) = state
         .banned_token_store
         .read()
         .await
         .is_banned_token(&request.token)
         .await
-        .is_ok()
     {
-        return Err(AuthAPIError::IncorrectCredentials);
+        if res {
+            return Err(AuthAPIError::IncorrectCredentials);
+        }
+    } else {
+        return Err(AuthAPIError::UnexpectedError);
     }
 
     let _result = validate_token(&request.token)

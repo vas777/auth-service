@@ -1,9 +1,9 @@
 use auth_service::services::{
     HashmapTwoFACodeStore, MockEmailClient, PostgresUserStore, RedisBannedTokenStore,
 };
-use auth_service::utils::constants::{DATABASE_URL, REDIS_HOST_NAME, test};
-use auth_service::{Application, get_redis_client};
+use auth_service::utils::constants::{test, DATABASE_URL, REDIS_HOST_NAME};
 use auth_service::{app_state::*, get_postgres_pool};
+use auth_service::{get_redis_client, Application};
 use reqwest::cookie::Jar;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::PgPool;
@@ -32,9 +32,14 @@ impl TestApp {
             configure_postgresql(&db_name).await,
         )));
 
-        let redis = get_redis_client(REDIS_HOST_NAME.to_string()).unwrap().get_connection().unwrap();
+        let redis = get_redis_client(REDIS_HOST_NAME.to_string())
+            .unwrap()
+            .get_connection()
+            .unwrap();
         // TODO : why is this correct ? are we just compromising or is it really necessary ?
-        let banned_token_store = Arc::new(RwLock::new(RedisBannedTokenStore::new(Arc::new(RwLock::new(redis)))));
+        let banned_token_store = Arc::new(RwLock::new(RedisBannedTokenStore::new(Arc::new(
+            RwLock::new(redis),
+        ))));
         let two_fa_code_store = Arc::new(RwLock::new(HashmapTwoFACodeStore::default()));
         let email_client = Arc::new(RwLock::new(MockEmailClient));
         let app_state = AppState::new(
@@ -145,10 +150,9 @@ impl TestApp {
         delete_database(&self.db_name).await;
         self.clean_up_called = true;
     }
-
 }
 // TODO: think about this
-// because test is asycn so we have runtime 
+// because test is asycn so we have runtime
 // and Runtime::new will try to create new runtime within async test that has runtime ?
 // Cannot start a runtime from within a runtime. This happens because a function (like `block_on`)
 //        attempted to block the current thread while the thread is being used to drive asynchronous tasks.

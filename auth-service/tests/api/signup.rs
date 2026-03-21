@@ -5,8 +5,6 @@ use test_helpers::test_help;
 #[test_help]
 #[tokio::test]
 async fn should_return_422_if_malformed_input() {
-    
-
     let random_email = get_random_email();
 
     // TODO: add more malformed input test cases
@@ -52,8 +50,6 @@ async fn should_return_422_if_malformed_input() {
 #[test_help]
 #[tokio::test]
 async fn should_return_201_if_valid_input() {
-    
-
     let random_email = get_random_email();
 
     // TODO: add more malformed input test cases
@@ -88,7 +84,6 @@ async fn should_return_400_if_invalid_input() {
     // The input is considered invalid if:
     // - The email is empty or does not contain '@'
     // - The password is less than 8 characters
-    
 
     let random_email = get_random_email();
     // Create an array of invalid inputs. Then, iterate through the array and
@@ -134,8 +129,6 @@ async fn should_return_400_if_invalid_input() {
 #[test_help]
 #[tokio::test]
 async fn should_return_409_if_email_already_exists() {
-    
-
     let u = serde_json::json!({
         "email": "vas@email",
         "password": "longenougpass",

@@ -63,10 +63,7 @@ impl Application {
         let server = axum::serve(listener, router);
 
         // Create a new Application instance and return it
-        Ok(Application {
-            server,
-            address,
-        })
+        Ok(Application { server, address })
     }
 
     pub async fn run(self) -> Result<(), std::io::Error> {

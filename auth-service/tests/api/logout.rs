@@ -7,7 +7,6 @@ use test_helpers::test_help;
 #[test_help]
 #[tokio::test]
 async fn should_return_200_if_valid_jwt_cookie() {
-    
     let random_email = get_random_email();
 
     let signup_body = serde_json::json!({
@@ -51,7 +50,6 @@ async fn should_return_200_if_valid_jwt_cookie() {
 #[test_help]
 #[tokio::test]
 async fn should_return_400_if_logout_called_twice_in_a_row() {
-    
     let random_email = get_random_email();
 
     let signup_body = serde_json::json!({

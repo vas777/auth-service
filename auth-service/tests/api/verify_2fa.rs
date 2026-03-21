@@ -5,13 +5,12 @@ use auth_service::{
     utils::constants::JWT_COOKIE_NAME,
 };
 
-use uuid::Uuid;
 use test_helpers::test_help;
+use uuid::Uuid;
 
 #[test_help]
 #[tokio::test]
 async fn should_return_422_if_malformed_input() {
-    
     let random_email = get_random_email();
 
     let test_cases = [
@@ -63,7 +62,6 @@ async fn should_return_422_if_malformed_input() {
 #[test_help]
 #[tokio::test]
 async fn should_return_400_if_invalid_input() {
-    
     let random_email = get_random_email();
     let test_cases = [
         serde_json::json!({
@@ -103,8 +101,6 @@ async fn should_return_400_if_invalid_input() {
 #[test_help]
 #[tokio::test]
 async fn should_return_401_if_incorrect_credentials() {
-    
-
     let random_email = get_random_email();
     let signup_body = serde_json::json!({
         "email": random_email,
@@ -146,7 +142,6 @@ async fn should_return_401_if_incorrect_credentials() {
 #[tokio::test]
 async fn should_return_401_if_old_code() {
     // Call login twice. Then, attempt to call verify-fa with the 2FA code from the first login requet. This should fail.
-    
 
     let random_email = get_random_email();
     let signup_body = serde_json::json!({
@@ -199,7 +194,6 @@ async fn should_return_401_if_old_code() {
 #[tokio::test]
 async fn should_return_200_if_correct_code() {
     // Make sure to assert the auth cookie gets set
-    
 
     let random_email = get_random_email();
     let signup_body = serde_json::json!({
@@ -253,8 +247,6 @@ async fn should_return_200_if_correct_code() {
 #[test_help]
 #[tokio::test]
 async fn should_return_401_if_same_code_twice() {
-    
-
     let random_email = get_random_email();
     let signup_body = serde_json::json!({
         "email": random_email,
