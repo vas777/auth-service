@@ -6,12 +6,11 @@ use crate::{
     domain::{AuthAPIError, Email, HashedPassword, User},
 };
 
-#[tracing::instrument(name = "Signup", skip_all, err(Debug))]
+#[tracing::instrument(name = "Signup", skip_all)]
 pub async fn signup(
     State(state): State<AppState>,
     Json(request): Json<SignupRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
-    // Create a new `User` instance using data in the `request`
     let email = Email::parse(request.email).map_err(|_| AuthAPIError::InvalidCredentials)?;
     let password = HashedPassword::parse(request.password)
         .await
@@ -21,8 +20,8 @@ pub async fn signup(
 
     let mut user_store = state.user_store.write().await;
 
-    if user_store.add_user(user).await.is_err() {
-        return Err(AuthAPIError::UserAlreadyExists);
+    if let Err(e) = user_store.add_user(user).await {
+        return Err(AuthAPIError::UnexpectedError(e.into()));
     };
 
     let response = Json(SignupResponse {

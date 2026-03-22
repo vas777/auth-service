@@ -2,8 +2,9 @@ use argon2::{
     password_hash::{rand_core::OsRng, SaltString},
     Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version,
 };
-use std::error::Error;
 
+use color_eyre::eyre::{eyre, Context, Result};
+use std::error::Error;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HashedPassword(String);
 
@@ -11,6 +12,7 @@ impl HashedPassword {
     // Update the parse function. Note that it's now async.
     // After password validation, hash the password.
     // Using the provided helper function compute_password_hash.
+    #[tracing::instrument(name = "password parsing", skip_all, err(Debug))]
     pub async fn parse(s: String) -> Result<Self, String> {
         if s.len() < 8 {
             Err("Password is too short!".to_string())
@@ -39,7 +41,7 @@ impl HashedPassword {
     pub async fn verify_raw_password(
         &self,
         password_candidate: &str,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) ->  Result<()> {
         // This line retrieves the current span from the tracing context.
         // The span represents the execution context for the compute_password_hash function.
         let current_span: tracing::Span = tracing::Span::current();
@@ -75,12 +77,13 @@ impl HashedPassword {
 // Hashing is a CPU-intensive operation. To avoid blocking
 // other async tasks, update this function to perform hashing on a
 // separate thread pool using tokio::task::spawn_blocking.
+// TODO: why this instrumenting is not printed?
 #[tracing::instrument(name = "Computing password hash", skip_all)]
-async fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error + Send + Sync>> {
+async fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error + Send + Sync>>  {
     let current_span: tracing::Span = tracing::Span::current();
     let password = password.to_owned();
 
-    let res = tokio::task::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(move || {
         current_span.in_scope(|| {
             let salt: SaltString = SaltString::generate(&mut OsRng);
             let password_hash = Argon2::new(
@@ -91,12 +94,13 @@ async fn compute_password_hash(password: &str) -> Result<String, Box<dyn Error +
             .hash_password(password.as_bytes(), &salt)?
             .to_string();
 
-            Ok(password_hash)
+            // Ok(password_hash)
+            Err(Box::new(std::io::Error::other("oh no!")) as Box<dyn Error + Send + Sync>)
         })
     })
-    .await?;
+    .await;
 
-    res
+    result?
 }
 
 impl From<PasswordHash<'_>> for HashedPassword {

@@ -4,6 +4,7 @@ use validator::ValidateEmail;
 pub struct Email(String);
 
 impl Email {
+    #[tracing::instrument(name = "email parsing", skip_all, err(Debug))]
     pub fn parse(email: String) -> Result<Email, String> {
         if email.validate_email() {
             Ok(Email(email))

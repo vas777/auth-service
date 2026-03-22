@@ -1,5 +1,6 @@
 use sqlx::PgPool;
 
+use color_eyre::eyre::{eyre, Context, Result};
 use crate::domain::{Email, HashedPassword, User, UserStore, UserStoreError};
 
 #[derive(Clone)]
@@ -21,9 +22,10 @@ impl UserStore for PostgresUserStore {
     #[tracing::instrument(name = "Adding user to PostgreSQL", skip_all)]
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
         // just to be sure
-        let _password_hash =
-            HashedPassword::parse_password_hash(user.password_hash.as_ref().to_owned())
-                .map_err(|_| UserStoreError::UnexpectedError)?;
+        // TODO  check this
+        // let _password_hash =
+        //     HashedPassword::parse_password_hash(user.password_hash.as_ref().to_owned())
+        //         .map_err(|e| UserStoreError::UnexpectedError(e.into()))?;
 
         sqlx::query!(
             // language=PostgreSQL
@@ -37,34 +39,65 @@ impl UserStore for PostgresUserStore {
         )
         .execute(&self.pool)
         .await
-        .map(|_| ())
         .map_err(|e| match e {
             sqlx::Error::Database(dbe) if dbe.constraint() == Some("user_username_key") => {
                 UserStoreError::UserAlreadyExists
             }
-            _ => UserStoreError::UnexpectedError,
-        })
+            _ => UserStoreError::UnexpectedError(e.into()),
+        })?;
+        
+        Ok(())
+
     }
+
 
     #[tracing::instrument(name = "Retrieving user from PostgreSQL", skip_all)]
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
-        let maybe_user = sqlx::query!(
+        let user = sqlx::query!(
             // language=PostgreSQL
             r#"select * from users where email = $1"#,
-            email.as_ref().to_owned()
+            email.as_ref()
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|_| UserStoreError::UnexpectedError);
+        .map_err(|e| 
+            match e {
+                sqlx::Error::RowNotFound => UserStoreError::UserNotFound,
+                _ => UserStoreError::UnexpectedError(eyre!(e))
+            }
+        )?;
 
-        if let Ok(user) = maybe_user {
-            let email = Email::parse(user.email).map_err(|_| UserStoreError::UnexpectedError)?;
-            let password_hash = HashedPassword::parse_password_hash(user.password_hash)
-                .map_err(|_| UserStoreError::UnexpectedError)?;
-            Ok(User::new(email, password_hash, user.requires_2fa))
-        } else {
-            Err(UserStoreError::UnexpectedError)
-        }
+        let email = Email::parse(user.email).map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
+        let password_hash = HashedPassword::parse_password_hash(user.password_hash)
+            .map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
+        Ok(User::new(email, password_hash, user.requires_2fa))
+
+        // TODO : map and ok_or ?
+        //         sqlx::query!(
+        //     r#"
+        //     SELECT email, password_hash, requires_2fa
+        //     FROM users
+        //     WHERE email = $1
+        //     "#,
+        //     email.as_ref()
+        // )
+        // .fetch_optional(&self.pool)
+        // .await
+        // .map_err(|e| UserStoreError::UnexpectedError(e.into()))?
+        // .map(|row| {
+        //     Ok(User {
+        //       email: Email::parse(row.email)
+        //           .map_err(|e| UserStoreError::UnexpectedError(eyre!  
+        //           (e)))?, // Updated!
+        //       password: HashedPassword::parse_password_hash(
+        //           row.password_hash)
+        //           .map_err(|e| UserStoreError::UnexpectedError(eyre!
+        //           (e)))?, // Updated!
+        //       requires_2fa: row.requires_2fa,
+        //     })
+        // })
+        // .ok_or(UserStoreError::UserNotFound)?
+      
     }
 
     #[tracing::instrument(name = "Validating user credentials in PostgreSQL", skip_all)]
