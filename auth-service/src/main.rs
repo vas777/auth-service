@@ -2,7 +2,10 @@ use auth_service::{
     app_state::{AppState, BannedTokens},
     get_postgres_pool, get_redis_client,
     services::{MockEmailClient, PostgresUserStore, RedisBannedTokenStore, RedisTwoFACodeStore},
-    utils::constants::{prod, DATABASE_URL, REDIS_HOST_NAME},
+    utils::{
+        constants::{prod, DATABASE_URL, REDIS_HOST_NAME},
+        tracing::init_tracing,
+    },
     Application,
 };
 use sqlx::PgPool;
@@ -11,7 +14,8 @@ use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() {
-    pretty_env_logger::init();
+    init_tracing();
+    // pretty_env_logger::init();
 
     let pg_pool = Arc::new(RwLock::new(PostgresUserStore::new(
         configure_postgresql().await,

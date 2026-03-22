@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum AuthAPIError {
     UnexpectedError,      // 500
     UserAlreadyExists,    // 409

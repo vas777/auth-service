@@ -18,6 +18,7 @@ impl UserStore for PostgresUserStore {
     // Implement all required methods.
     // Note that you will need to make SQL queries against our PostgreSQL instance inside these methods.
     // Ensure to parse the password_hash.
+    #[tracing::instrument(name = "Adding user to PostgreSQL", skip_all)]
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError> {
         // just to be sure
         let _password_hash =
@@ -44,6 +45,8 @@ impl UserStore for PostgresUserStore {
             _ => UserStoreError::UnexpectedError,
         })
     }
+
+    #[tracing::instrument(name = "Retrieving user from PostgreSQL", skip_all)]
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
         let maybe_user = sqlx::query!(
             // language=PostgreSQL
@@ -63,6 +66,8 @@ impl UserStore for PostgresUserStore {
             Err(UserStoreError::UnexpectedError)
         }
     }
+
+    #[tracing::instrument(name = "Validating user credentials in PostgreSQL", skip_all)]
     async fn validate_user(&self, email: &Email, raw_password: &str) -> Result<(), UserStoreError> {
         let user = self.get_user(email).await?;
 
