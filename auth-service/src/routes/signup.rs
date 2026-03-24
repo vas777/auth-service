@@ -1,4 +1,5 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use color_eyre::eyre::{self, eyre, Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -14,7 +15,7 @@ pub async fn signup(
     let email = Email::parse(request.email).map_err(|_| AuthAPIError::InvalidCredentials)?;
     let password = HashedPassword::parse(request.password)
         .await
-        .map_err(|_| AuthAPIError::InvalidCredentials)?;
+        .map_err(|e| AuthAPIError::UnexpectedError(eyre!("oh no!")))?;
 
     let user = User::new(email, password, request.requires_2fa);
 

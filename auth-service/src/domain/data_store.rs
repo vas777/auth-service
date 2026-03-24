@@ -1,9 +1,8 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use color_eyre::eyre::Report;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
+use uuid::Uuid;
 
 use super::{Email, User};
 

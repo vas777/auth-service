@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
-use color_eyre::eyre::{eyre, Context, Result};
 use crate::domain::{Email, HashedPassword, User, UserStore, UserStoreError};
+use color_eyre::eyre::{eyre, Context, Result};
 
 #[derive(Clone)]
 pub struct PostgresUserStore {
@@ -45,11 +45,9 @@ impl UserStore for PostgresUserStore {
             }
             _ => UserStoreError::UnexpectedError(e.into()),
         })?;
-        
+
         Ok(())
-
     }
-
 
     #[tracing::instrument(name = "Retrieving user from PostgreSQL", skip_all)]
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
@@ -60,14 +58,13 @@ impl UserStore for PostgresUserStore {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| 
-            match e {
-                sqlx::Error::RowNotFound => UserStoreError::UserNotFound,
-                _ => UserStoreError::UnexpectedError(eyre!(e))
-            }
-        )?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => UserStoreError::UserNotFound,
+            _ => UserStoreError::UnexpectedError(eyre!(e)),
+        })?;
 
-        let email = Email::parse(user.email).map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
+        let email =
+            Email::parse(user.email).map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
         let password_hash = HashedPassword::parse_password_hash(user.password_hash)
             .map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
         Ok(User::new(email, password_hash, user.requires_2fa))
@@ -87,7 +84,7 @@ impl UserStore for PostgresUserStore {
         // .map(|row| {
         //     Ok(User {
         //       email: Email::parse(row.email)
-        //           .map_err(|e| UserStoreError::UnexpectedError(eyre!  
+        //           .map_err(|e| UserStoreError::UnexpectedError(eyre!
         //           (e)))?, // Updated!
         //       password: HashedPassword::parse_password_hash(
         //           row.password_hash)
@@ -97,7 +94,6 @@ impl UserStore for PostgresUserStore {
         //     })
         // })
         // .ok_or(UserStoreError::UserNotFound)?
-      
     }
 
     #[tracing::instrument(name = "Validating user credentials in PostgreSQL", skip_all)]
