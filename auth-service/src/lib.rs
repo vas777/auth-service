@@ -8,9 +8,7 @@ use axum::{
     serve::Serve,
     Json, Router,
 };
-use domain::AuthAPIError;
 use redis::{Client, RedisResult};
-use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::error::Error;

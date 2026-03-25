@@ -4,7 +4,6 @@ use argon2::{
 };
 
 use color_eyre::eyre::{eyre, Context, Result};
-use std::error::Error;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HashedPassword(String);
 
@@ -12,15 +11,15 @@ impl HashedPassword {
     // Update the parse function. Note that it's now async.
     // After password validation, hash the password.
     // Using the provided helper function compute_password_hash.
-    // #[tracing::instrument(name = "password parsing", skip_all)]
-    pub async fn parse(s: String) -> Result<Self, String> {
+    #[tracing::instrument(name = "password parsing", skip_all)]
+    pub async fn parse(s: String) -> Result<Self> {
         if s.len() < 8 {
-            Err("Password is too short!".to_string())
+            Err(eyre!("Password is too short!"))
         } else {
             Ok(HashedPassword(
                 compute_password_hash(&s)
                     .await
-                    .map_err(|_| "Unexpected error".to_string())?,
+                    .map_err(|e| eyre!(e))?,
             ))
         }
     }
@@ -91,8 +90,7 @@ async fn compute_password_hash(password: &str) -> Result<String> {
             .hash_password(password.as_bytes(), &salt)?
             .to_string();
 
-            // Ok(password_hash)
-            Err(eyre!("oh no!")) // New!
+           Ok(password_hash)
         })
     })
     .await;

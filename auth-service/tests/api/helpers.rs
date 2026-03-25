@@ -151,6 +151,7 @@ impl TestApp {
 
     pub async fn clean_up(&mut self) {
         delete_database(&self.db_name).await;
+        println!("cleaning");
         self.clean_up_called = true;
     }
 }
