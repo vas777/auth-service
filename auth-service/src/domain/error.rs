@@ -12,7 +12,7 @@ pub enum AuthAPIError {
     #[error("User already exists")]
     UserAlreadyExists,
     #[error("Invalid credentials")]
-    InvalidCredentials(#[source] Report),
+    InvalidCredentials,
     #[error("Incorrect credentials")]
     IncorrectCredentials,
     #[error("Missing token")]
@@ -28,7 +28,7 @@ impl PartialEq for AuthAPIError {
         matches!(
             (self, other),
             (Self::UserAlreadyExists, Self::UserAlreadyExists)
-                | (Self::InvalidCredentials(_), Self::InvalidCredentials(_))
+                | (Self::InvalidCredentials, Self::InvalidCredentials)
                 | (Self::IncorrectCredentials, Self::IncorrectCredentials)
                 | (Self::MissingToken, Self::MissingToken)
                 | (Self::InvalidToken, Self::InvalidToken)
@@ -45,7 +45,7 @@ impl IntoResponse for AuthAPIError {
         log_error_chain(&self);
         let (status, error_message) = match self {
             AuthAPIError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
-            AuthAPIError::InvalidCredentials(_) => (StatusCode::BAD_REQUEST, "Invalid credentials"),
+            AuthAPIError::InvalidCredentials => (StatusCode::BAD_REQUEST, "Invalid credentials"),
             AuthAPIError::IncorrectCredentials => {
                 (StatusCode::UNAUTHORIZED, "Incorrect credentials")
             }

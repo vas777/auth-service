@@ -1,13 +1,7 @@
 use crate::app_state::AppState;
 // use crate::routes::{login, logout, signup, verify_2fa, verify_token};
 use crate::routes::signup;
-use axum::{
-    http::{Method, StatusCode},
-    response::{IntoResponse, Response},
-    routing::post,
-    serve::Serve,
-    Json, Router,
-};
+use axum::{http::Method, routing::post, serve::Serve, Router};
 use redis::{Client, RedisResult};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;

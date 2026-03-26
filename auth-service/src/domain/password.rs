@@ -3,7 +3,7 @@ use argon2::{
     Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version,
 };
 
-use color_eyre::eyre::{eyre, Context, Result};
+use color_eyre::eyre::{eyre, Result};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HashedPassword(String);
 
@@ -17,9 +17,7 @@ impl HashedPassword {
             Err(eyre!("Password is too short!"))
         } else {
             Ok(HashedPassword(
-                compute_password_hash(&s)
-                    .await
-                    .map_err(|e| eyre!(e))?,
+                compute_password_hash(&s).await.map_err(|e| eyre!(e))?,
             ))
         }
     }
@@ -90,7 +88,7 @@ async fn compute_password_hash(password: &str) -> Result<String> {
             .hash_password(password.as_bytes(), &salt)?
             .to_string();
 
-           Ok(password_hash)
+            Ok(password_hash)
         })
     })
     .await;

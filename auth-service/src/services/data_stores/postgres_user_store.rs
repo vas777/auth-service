@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use crate::domain::{Email, HashedPassword, User, UserStore, UserStoreError};
-use color_eyre::eyre::{eyre, Context, Result};
+use color_eyre::eyre::{eyre, Result};
 
 #[derive(Clone)]
 pub struct PostgresUserStore {
@@ -40,7 +40,7 @@ impl UserStore for PostgresUserStore {
         .execute(&self.pool)
         .await
         .map_err(|e| match e {
-            sqlx::Error::Database(dbe) if dbe.constraint() == Some("user_username_key") => {
+            sqlx::Error::Database(dbe) if dbe.constraint() == Some("users_pkey") => {
                 UserStoreError::UserAlreadyExists
             }
             _ => UserStoreError::UnexpectedError(e.into()),
