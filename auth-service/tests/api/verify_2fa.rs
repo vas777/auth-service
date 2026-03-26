@@ -125,12 +125,11 @@ async fn should_return_401_if_incorrect_credentials() {
         .await
         .expect("Could not deserialize response body to TwoFactorAuthResponse");
     assert!(response.message.eq("2FA required"));
-    assert!(TwoFACode::parse(response.login_attempt_id).is_ok());
 
     let verify_2fa_body = serde_json::json!({
         "email": random_email,
         "loginAttemptId": Uuid::new_v4(),
-        "2FACode": "000000"
+        "2FACode": "100000"
     });
 
     let response = app.post_verify_2fa(&verify_2fa_body).await;
@@ -177,7 +176,6 @@ async fn should_return_401_if_old_code() {
         .await
         .expect("Could not deserialize response body to TwoFactorAuthResponse");
     assert!(response.message.eq("2FA required"));
-    assert!(TwoFACode::parse(response.login_attempt_id.clone()).is_ok());
 
     let verify_2fa_body = serde_json::json!({
         "email": random_email.clone(),
@@ -226,7 +224,6 @@ async fn should_return_200_if_correct_code() {
         .await
         .expect("Could not deserialize response body to TwoFactorAuthResponse");
     assert!(response.message.eq("2FA required"));
-    assert!(TwoFACode::parse(response.login_attempt_id.clone()).is_ok());
 
     let verify_2fa_body = serde_json::json!({
         "email": random_email.clone(),

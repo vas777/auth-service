@@ -175,13 +175,13 @@ async fn should_return_206_if_valid_credentials_and_2fa_enabled() {
         .await
         .expect("Could not deserialize response body to TwoFactorAuthResponse");
     assert!(response.message.eq("2FA required"));
-    assert!(TwoFACode::parse(response.login_attempt_id).is_ok());
 
-    assert!(app
-        .two_fa_code_store
-        .read()
-        .await
+    let two_fa_code_store = app.two_fa_code_store.read().await;
+
+    let code_tuple = two_fa_code_store
         .get_code(&email)
         .await
-        .is_ok());
+        .expect("Failed to get 2FA code");
+
+    assert_eq!(code_tuple.0.as_ref(), response.login_attempt_id);
 }

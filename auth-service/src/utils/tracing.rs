@@ -9,7 +9,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 pub fn init_tracing() -> Result<()> {
     // Create a formatting layer for tracing output with a compact format
-    let fmt_layer = fmt::layer().compact().with_ansi(false);
+    let fmt_layer = fmt::layer().compact();
 
     // Create a filter layer to control the verbosity of logs
     // Try to get the filter configuration from the environment variables

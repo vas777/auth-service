@@ -1,6 +1,5 @@
 use crate::app_state::AppState;
-// use crate::routes::{login, logout, signup, verify_2fa, verify_token};
-use crate::routes::signup;
+use crate::routes::{login, logout, signup, verify_2fa, verify_token};
 use axum::{http::Method, routing::post, serve::Serve, Router};
 use redis::{Client, RedisResult};
 use sqlx::postgres::PgPoolOptions;
@@ -45,10 +44,10 @@ impl Application {
             // TODO what about root / ?
             // nesting on root ins not supported
             .route("/signup", post(signup))
-            // .route("/login", post(login))
-            // .route("/logout", post(logout))
-            // .route("/verify-2fa", post(verify_2fa))
-            // .route("/verify-token", post(verify_token))
+            .route("/login", post(login))
+            .route("/logout", post(logout))
+            .route("/verify-2fa", post(verify_2fa))
+            .route("/verify-token", post(verify_token))
             .with_state(app_state)
             .layer(cors)
             .layer(

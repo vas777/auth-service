@@ -1,5 +1,6 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::CookieJar;
+use color_eyre::eyre::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
     utils::auth::generate_auth_cookie,
 };
 
+#[tracing::instrument(name = "Login", skip_all)]
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -46,6 +48,7 @@ pub async fn login(
     }
 }
 
+#[tracing::instrument(name = "Handling 2FA", skip_all)]
 async fn handle_2fa(
     email: &Email,
     state: &AppState,
@@ -61,27 +64,25 @@ async fn handle_2fa(
 
     // Store the ID and code in our 2FA code store.
     // Return `AuthAPIError::UnexpectedError` if the operation fails
-    if state
+    if let Err(e) = state
         .two_fa_code_store
         .write()
         .await
         .add_code(email.clone(), login_attempt_id.clone(), two_fa_code.clone())
         .await
-        .is_err()
     {
-        return (jar, Err(AuthAPIError::UnexpectedError));
+        return (jar, Err(AuthAPIError::UnexpectedError(e.into())));
     }
 
     // send 2FA code via the email client. Return `AuthAPIError::UnexpectedError` if the operation fails.
-    if state
+    if let Err(e) = state
         .email_client
         .write()
         .await
         .send_email(email, "2FA code", two_fa_code.as_ref())
         .await
-        .is_err()
     {
-        return (jar, Err(AuthAPIError::UnexpectedError));
+        return (jar, Err(AuthAPIError::UnexpectedError(e)));
     }
 
     let response = Json(LoginResponse::TwoFactorAuth(TwoFactorAuthResponse {
@@ -92,6 +93,7 @@ async fn handle_2fa(
     (jar, Ok((StatusCode::PARTIAL_CONTENT, response)))
 }
 
+#[tracing::instrument(name = "Handling NO 2FA", skip_all)]
 async fn handle_no_2fa(
     email: &Email,
     jar: CookieJar,
@@ -101,7 +103,7 @@ async fn handle_no_2fa(
 ) {
     let auth_cookie = match generate_auth_cookie(&email) {
         Ok(cookie) => cookie,
-        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+        Err(e) => return (jar, Err(AuthAPIError::UnexpectedError(e))),
     };
 
     let updated_jar = jar.add(auth_cookie);

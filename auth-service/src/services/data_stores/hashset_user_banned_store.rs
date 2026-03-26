@@ -1,3 +1,5 @@
+use color_eyre::eyre::eyre;
+
 use crate::domain::{BannedTokenStore, BannedTokenStoreError};
 use std::collections::HashSet;
 
@@ -15,7 +17,9 @@ impl BannedTokenStore for HashsetBannedTokenStore {
 
     async fn is_banned_token(&self, token: &str) -> Result<bool, BannedTokenStoreError> {
         if !self.store.contains(token) {
-            return Err(BannedTokenStoreError::TokenDoesNotExists);
+            return Err(BannedTokenStoreError::UnexpectedError(eyre!(
+                "failed to check if token exists"
+            )));
         }
         Ok(true)
     }

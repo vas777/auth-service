@@ -7,6 +7,7 @@ use crate::{
     domain::{BannedTokenStore, BannedTokenStoreError},
     utils::auth::TOKEN_TTL_SECONDS,
 };
+use color_eyre::eyre::{eyre, Context, ContextCompat, Result};
 
 #[derive(Clone)]
 pub struct RedisBannedTokenStore {
@@ -21,6 +22,7 @@ impl RedisBannedTokenStore {
 
 #[async_trait::async_trait]
 impl BannedTokenStore for RedisBannedTokenStore {
+    #[tracing::instrument(name = "adding banned token", skip_all)]
     async fn add_banned_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
         // 1. Create a new key using the get_key helper function.
         // 2. Call the set_ex command on the Redis connection to set a new key/value pair with an expiration time (TTL).
@@ -35,14 +37,16 @@ impl BannedTokenStore for RedisBannedTokenStore {
 
         let ttl: u64 = TOKEN_TTL_SECONDS
             .try_into()
-            .map_err(|_| BannedTokenStoreError::UnexpectedError)?;
+            .wrap_err("failed to cast TOKEN_TTL_SECONDS to u64")
+            .map_err(BannedTokenStoreError::UnexpectedError)?;
 
         let _: () = self
             .conn
             .write()
             .await
             .set_ex(&token_key, value, ttl)
-            .map_err(|_| BannedTokenStoreError::UnexpectedError)?;
+            .wrap_err("failed to set banned token in Redis")
+            .map_err(BannedTokenStoreError::UnexpectedError)?;
 
         Ok(())
 
@@ -54,6 +58,7 @@ impl BannedTokenStore for RedisBannedTokenStore {
         // }
     }
 
+    #[tracing::instrument(name = "checking banned token", skip_all)]
     async fn is_banned_token(&self, token: &str) -> Result<bool, BannedTokenStoreError> {
         // Check if the token exists by calling the exists method on the Redis connection
 
@@ -64,7 +69,8 @@ impl BannedTokenStore for RedisBannedTokenStore {
             .write()
             .await
             .exists(&token_key)
-            .map_err(|_| BannedTokenStoreError::UnexpectedError)?;
+            .wrap_err("failed to check if token exists in Redis")
+            .map_err(BannedTokenStoreError::UnexpectedError)?;
 
         Ok(is_banned)
 

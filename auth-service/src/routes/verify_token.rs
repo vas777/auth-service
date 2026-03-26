@@ -1,24 +1,28 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use serde::Deserialize;
-
 use crate::{app_state::AppState, domain::AuthAPIError, utils::auth::validate_token};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use color_eyre::eyre::{self, eyre, Result};
+use serde::Deserialize;
+use tokio::net::tcp::ReuniteError;
 
+#[tracing::instrument(name = "Verifying token", skip_all)]
 pub async fn verify_token(
     State(state): State<AppState>,
     Json(request): Json<VerifyTokenRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
-    if let Ok(res) = state
+    let result = state
         .banned_token_store
         .read()
         .await
         .is_banned_token(&request.token)
-        .await
-    {
-        if res {
-            return Err(AuthAPIError::IncorrectCredentials);
+        .await;
+
+    match result {
+        Ok(verdict) => {
+            if verdict {
+                return Err(AuthAPIError::IncorrectCredentials);
+            }
         }
-    } else {
-        return Err(AuthAPIError::UnexpectedError);
+        Err(e) => return Err(AuthAPIError::UnexpectedError(e.into())),
     }
 
     let _result = validate_token(&request.token)
