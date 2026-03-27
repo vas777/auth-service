@@ -4,6 +4,7 @@ use auth_service::{
     routes::TwoFactorAuthResponse,
     utils::constants::JWT_COOKIE_NAME,
 };
+use secrecy::SecretString;
 use serde::Serialize;
 use test_helpers::test_help;
 
@@ -59,7 +60,7 @@ async fn should_return_400_if_invalid_input() {
     // 400 HTTP status code is returned along with the appropriate error message.
 
     // TODO wouldn't it be better if we had structure here ?
-    #[derive(Serialize, Debug)]
+    #[derive( Serialize,Debug)]
     struct LoginRequest {
         email: String,
         password: String,
@@ -151,9 +152,9 @@ async fn should_return_200_if_valid_credentials_and_2fa_disabled() {
 #[tokio::test]
 async fn should_return_206_if_valid_credentials_and_2fa_enabled() {
     let random_email = get_random_email();
-    let email = Email::parse(random_email.clone()).unwrap();
+    let email = Email::parse(SecretString::new(random_email.clone().into_boxed_str())).unwrap();
     let signup_body = serde_json::json!({
-        "email": random_email,
+        "email": random_email.clone(),
         "password": "password123",
         "requires2FA": true
     });

@@ -1,12 +1,13 @@
 use crate::helpers::{get_random_email, TestApp};
 use auth_service::{
-    domain::{Email, TwoFACode},
+    domain::{Email},
     routes::TwoFactorAuthResponse,
     utils::constants::JWT_COOKIE_NAME,
 };
 
 use test_helpers::test_help;
 use uuid::Uuid;
+use secrecy::SecretString;
 
 #[test_help]
 #[tokio::test]
@@ -164,7 +165,7 @@ async fn should_return_401_if_old_code() {
         .two_fa_code_store
         .read()
         .await
-        .get_code(&Email::parse(random_email.clone()).unwrap())
+        .get_code(&Email::parse(SecretString::new(random_email.clone().into_boxed_str())).unwrap())
         .await
         .unwrap();
 
@@ -215,7 +216,7 @@ async fn should_return_200_if_correct_code() {
         .two_fa_code_store
         .read()
         .await
-        .get_code(&Email::parse(random_email.clone()).unwrap())
+        .get_code(&Email::parse(SecretString::new(random_email.clone().into_boxed_str())).unwrap())
         .await
         .unwrap();
 
@@ -266,7 +267,7 @@ async fn should_return_401_if_same_code_twice() {
         .two_fa_code_store
         .read()
         .await
-        .get_code(&Email::parse(random_email.clone()).unwrap())
+        .get_code(&Email::parse(SecretString::new(random_email.clone().into_boxed_str())).unwrap())
         .await
         .unwrap();
 

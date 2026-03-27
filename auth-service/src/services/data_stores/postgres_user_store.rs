@@ -1,5 +1,5 @@
 use sqlx::PgPool;
-
+use secrecy::{ExposeSecret, SecretString};
 use crate::domain::{Email, HashedPassword, User, UserStore, UserStoreError};
 use color_eyre::eyre::{eyre, Result};
 
@@ -33,8 +33,8 @@ impl UserStore for PostgresUserStore {
             insert into "users"(email, password_hash, requires_2fa)
             values ($1, $2, $3)
         "#,
-            user.email.as_ref().to_owned(),
-            user.password_hash.as_ref().to_owned(),
+            user.email.as_ref().expose_secret(),
+            user.password_hash.as_ref().expose_secret(),
             user.requires_2fa
         )
         .execute(&self.pool)
@@ -54,7 +54,7 @@ impl UserStore for PostgresUserStore {
         let user = sqlx::query!(
             // language=PostgreSQL
             r#"select * from users where email = $1"#,
-            email.as_ref()
+            email.as_ref().expose_secret()
         )
         .fetch_one(&self.pool)
         .await
@@ -64,8 +64,8 @@ impl UserStore for PostgresUserStore {
         })?;
 
         let email =
-            Email::parse(user.email).map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
-        let password_hash = HashedPassword::parse_password_hash(user.password_hash)
+            Email::parse(SecretString::new(user.email.into_boxed_str())).map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
+        let password_hash = HashedPassword::parse_password_hash(SecretString::new(user.password_hash.into_boxed_str()))
             .map_err(|e| UserStoreError::UnexpectedError(eyre!(e)))?;
         Ok(User::new(email, password_hash, user.requires_2fa))
 
@@ -97,7 +97,7 @@ impl UserStore for PostgresUserStore {
     }
 
     #[tracing::instrument(name = "Validating user credentials in PostgreSQL", skip_all)]
-    async fn validate_user(&self, email: &Email, raw_password: &str) -> Result<(), UserStoreError> {
+    async fn validate_user(&self, email: &Email, raw_password: &SecretString) -> Result<(), UserStoreError> {
         let user = self.get_user(email).await?;
 
         user.password_hash

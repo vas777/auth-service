@@ -2,6 +2,7 @@ use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::Utc;
 use color_eyre::eyre::{eyre, Context, ContextCompat, Result};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Validation};
+use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
 use super::constants::{JWT_COOKIE_NAME, JWT_SECRET};
@@ -47,7 +48,7 @@ fn generate_auth_token(email: &Email) -> Result<String> {
         exp
     ))?;
 
-    let sub = email.as_ref().to_owned();
+    let sub = email.as_ref().expose_secret().to_owned();
     // TODO why examples dont use exparation ? instead they have compnay ?
     let claims = Claims { sub, exp };
 
@@ -85,10 +86,11 @@ pub struct Claims {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secrecy::{SecretString};
 
     #[tokio::test]
     async fn test_generate_auth_cookie() {
-        let email = Email::parse("test@example.com".to_owned()).unwrap();
+        let email = Email::parse(SecretString::new("test@example.com".to_owned().into_boxed_str())).unwrap();
         let cookie = generate_auth_cookie(&email).unwrap();
         assert_eq!(cookie.name(), JWT_COOKIE_NAME);
         assert_eq!(cookie.value().split('.').count(), 3);
@@ -110,14 +112,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_auth_token() {
-        let email = Email::parse("test@example.com".to_owned()).unwrap();
+        let email = Email::parse(SecretString::new("test@example.com".to_owned().into_boxed_str())).unwrap();
         let result = generate_auth_token(&email).unwrap();
         assert_eq!(result.split('.').count(), 3);
     }
 
     #[tokio::test]
     async fn test_validate_token_with_valid_token() {
-        let email = Email::parse("test@example.com".to_owned()).unwrap();
+        let email = Email::parse(SecretString::new("test@example.com".to_owned().into_boxed_str())).unwrap();
         let token = generate_auth_token(&email).unwrap();
         let result = validate_token(&token).await.unwrap();
         assert_eq!(result.sub, "test@example.com");

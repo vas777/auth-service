@@ -1,6 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::CookieJar;
 use color_eyre::eyre::Result;
+use secrecy::{SecretString, ExposeSecret};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -30,7 +31,7 @@ pub async fn login(
     let user_store = &state.user_store.read().await;
 
     if user_store
-        .validate_user(&email, request.password.as_ref())
+        .validate_user(&email, &request.password)
         .await
         .is_err()
     {
@@ -119,8 +120,8 @@ async fn handle_no_2fa(
 // this will make extra fields to 422
 #[serde(deny_unknown_fields)]
 pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
+    pub email: SecretString,
+    pub password: SecretString,
 }
 
 // The login route can return 2 possible success responses.

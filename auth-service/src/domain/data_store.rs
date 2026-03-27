@@ -1,4 +1,5 @@
 use color_eyre::eyre::{eyre, Context, Report, Result};
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -38,7 +39,7 @@ pub enum BannedTokenStoreError {
 pub trait UserStore {
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
     async fn get_user(&self, email: &Email) -> Result<User, UserStoreError>;
-    async fn validate_user(&self, email: &Email, raw_password: &str) -> Result<(), UserStoreError>;
+    async fn validate_user(&self, email: &Email, raw_password: &SecretString) -> Result<(), UserStoreError>;
 }
 
 #[async_trait::async_trait]
