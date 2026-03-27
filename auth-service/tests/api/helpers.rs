@@ -6,6 +6,7 @@ use auth_service::utils::constants::{test, DATABASE_URL, REDIS_HOST_NAME};
 use auth_service::{app_state::*, get_postgres_pool};
 use auth_service::{get_redis_client, Application};
 use reqwest::cookie::Jar;
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::PgPool;
 use sqlx::{Connection, Executor, PgConnection};
@@ -189,9 +190,11 @@ async fn configure_postgresql(db_name: &str) -> PgPool {
 
     // We are creating a new database for each test case, and we need to ensure each database has a unique name!
 
-    configure_database(&postgresql_conn_url, &db_name).await;
+    configure_database(&postgresql_conn_url.expose_secret(), &db_name).await;
 
-    let postgresql_conn_url_with_db = format!("{}/{}", postgresql_conn_url, db_name);
+    let postgresql_conn_url_with_db = SecretString::new(
+        format!("{}/{}", postgresql_conn_url.expose_secret(), db_name).into_boxed_str(),
+    );
 
     // Create a new connection pool and return it
     get_postgres_pool(&postgresql_conn_url_with_db)
@@ -229,7 +232,7 @@ async fn configure_database(db_conn_string: &str, db_name: &str) {
 }
 
 async fn delete_database(db_name: &str) {
-    let postgresql_conn_url: String = DATABASE_URL.to_owned();
+    let postgresql_conn_url = DATABASE_URL.expose_secret();
 
     let connection_options = PgConnectOptions::from_str(&postgresql_conn_url)
         .expect("Failed to parse PostgreSQL connection string");

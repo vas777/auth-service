@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use redis::{Commands, Connection};
+use secrecy::{SecretString, ExposeSecret};
 use tokio::sync::RwLock;
 
 use crate::{
     domain::{BannedTokenStore, BannedTokenStoreError},
     utils::auth::TOKEN_TTL_SECONDS,
 };
-use color_eyre::eyre::{eyre, Context, ContextCompat, Result};
+use color_eyre::eyre::{ Context, Result};
 
 #[derive(Clone)]
 pub struct RedisBannedTokenStore {
@@ -23,7 +24,7 @@ impl RedisBannedTokenStore {
 #[async_trait::async_trait]
 impl BannedTokenStore for RedisBannedTokenStore {
     #[tracing::instrument(name = "adding banned token", skip_all)]
-    async fn add_banned_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
+    async fn add_banned_token(&mut self, token: SecretString) -> Result<(), BannedTokenStoreError> {
         // 1. Create a new key using the get_key helper function.
         // 2. Call the set_ex command on the Redis connection to set a new key/value pair with an expiration time (TTL).
         // The value should simply be a `true` (boolean value).
@@ -31,7 +32,7 @@ impl BannedTokenStore for RedisBannedTokenStore {
         // NOTE: The TTL is expected to be a u64 so you will have to cast TOKEN_TTL_SECONDS to a u64.
         // Return BannedTokenStoreError::UnexpectedError if casting fails or the call to set_ex fails.
 
-        let token_key = get_key(token.as_str());
+        let token_key = get_key(token.expose_secret());
 
         let value = true;
 
@@ -59,10 +60,10 @@ impl BannedTokenStore for RedisBannedTokenStore {
     }
 
     #[tracing::instrument(name = "checking banned token", skip_all)]
-    async fn is_banned_token(&self, token: &str) -> Result<bool, BannedTokenStoreError> {
+    async fn is_banned_token(&self, token: &SecretString) -> Result<bool, BannedTokenStoreError> {
         // Check if the token exists by calling the exists method on the Redis connection
 
-        let token_key = get_key(token);
+        let token_key = get_key(token.expose_secret());
 
         let is_banned: bool = self
             .conn

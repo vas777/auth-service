@@ -60,7 +60,7 @@ async fn should_return_400_if_invalid_input() {
     // 400 HTTP status code is returned along with the appropriate error message.
 
     // TODO wouldn't it be better if we had structure here ?
-    #[derive( Serialize,Debug)]
+    #[derive(Serialize, Debug)]
     struct LoginRequest {
         email: String,
         password: String,

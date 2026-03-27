@@ -196,7 +196,9 @@ mod tests {
             .to_string();
 
         let hash_password = HashedPassword::parse_password_hash(SecretString::new(
-            hash_string.clone().into_boxed_str())).unwrap();
+            hash_string.clone().into_boxed_str(),
+        ))
+        .unwrap();
 
         assert_eq!(hash_password.as_ref().expose_secret(), hash_string.as_str());
         assert!(hash_password

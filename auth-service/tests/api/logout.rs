@@ -1,5 +1,6 @@
 use auth_service::utils::constants::JWT_COOKIE_NAME;
 use reqwest::Url;
+use secrecy::SecretString;
 
 use crate::helpers::{get_random_email, TestApp};
 use test_helpers::test_help;
@@ -31,7 +32,7 @@ async fn should_return_200_if_valid_jwt_cookie() {
         .find(|cookie| cookie.name() == JWT_COOKIE_NAME)
         .expect("No auth cookie found");
 
-    let token = auth_cookie.value().to_owned();
+    let token = SecretString::new(auth_cookie.value().to_owned().into_boxed_str());
 
     assert_eq!(response.status().as_u16(), 200);
 

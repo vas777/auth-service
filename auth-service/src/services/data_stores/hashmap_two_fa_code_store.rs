@@ -46,7 +46,8 @@ mod tests {
     async fn test_add_user() {
         let mut store = HashmapTwoFACodeStore::default();
 
-        let email = Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
+        let email =
+            Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
         let loginid = LoginAttemptId::default();
         let code = TwoFACode::default();
         assert_eq!(
@@ -71,7 +72,8 @@ mod tests {
     async fn test_get_user() {
         let mut store = HashmapTwoFACodeStore::default();
 
-        let email = Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
+        let email =
+            Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
         let loginid = LoginAttemptId::default();
         let code = TwoFACode::default();
         store
@@ -83,7 +85,10 @@ mod tests {
         assert_eq!(loginid, logidresult);
         assert_eq!(code, coderesult);
 
-        let email = Email::parse(SecretString::new("emailwasnot@added".to_owned().into_boxed_str())).unwrap();
+        let email = Email::parse(SecretString::new(
+            "emailwasnot@added".to_owned().into_boxed_str(),
+        ))
+        .unwrap();
 
         assert!(store.get_code(&email).await.is_err());
     }
@@ -92,7 +97,8 @@ mod tests {
     async fn test_remove_user() {
         let mut store = HashmapTwoFACodeStore::default();
 
-        let email = Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
+        let email =
+            Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
         let loginid = LoginAttemptId::default();
         let code = TwoFACode::default();
         let _ = store
@@ -107,7 +113,12 @@ mod tests {
         assert!(store.remove_code(&email).await.is_err());
 
         assert!(store
-            .remove_code(&Email::parse(SecretString::new("emailwasnot@added".to_owned().into_boxed_str())).unwrap())
+            .remove_code(
+                &Email::parse(SecretString::new(
+                    "emailwasnot@added".to_owned().into_boxed_str()
+                ))
+                .unwrap()
+            )
             .await
             .is_err());
     }

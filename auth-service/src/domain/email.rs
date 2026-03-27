@@ -1,7 +1,7 @@
+use color_eyre::eyre::{eyre, Result};
+use secrecy::{ExposeSecret, SecretString};
 use std::hash::Hash;
 use validator::ValidateEmail;
-use color_eyre::eyre::{eyre, Result};
-use secrecy::{SecretString, ExposeSecret};
 #[derive(Debug, Clone)]
 pub struct Email(SecretString);
 
@@ -27,7 +27,10 @@ impl Email {
         if email.expose_secret().validate_email() {
             Ok(Self(email))
         } else {
-            Err(eyre!(format!("Not valid email: `{}`", email.expose_secret())))
+            Err(eyre!(format!(
+                "Not valid email: `{}`",
+                email.expose_secret()
+            )))
         }
     }
 }
@@ -62,7 +65,6 @@ mod test {
 
         let email = SecretString::new("@".to_owned().into_boxed_str());
         assert!(Email::parse(email).is_err());
-
     }
 
     #[derive(Debug, Clone)]

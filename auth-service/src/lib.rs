@@ -2,6 +2,7 @@ use crate::app_state::AppState;
 use crate::routes::{login, logout, signup, verify_2fa, verify_token};
 use axum::{http::Method, routing::post, serve::Serve, Router};
 use redis::{Client, RedisResult};
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::error::Error;
@@ -71,9 +72,12 @@ impl Application {
     }
 }
 
-pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
+pub async fn get_postgres_pool(url: &SecretString) -> Result<PgPool, sqlx::Error> {
     // Create a new PostgreSQL connection pool
-    PgPoolOptions::new().max_connections(5).connect(url).await
+    PgPoolOptions::new()
+        .max_connections(5)
+        .connect(url.expose_secret())
+        .await
 }
 
 pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {

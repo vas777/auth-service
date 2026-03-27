@@ -1,13 +1,11 @@
 use crate::helpers::{get_random_email, TestApp};
 use auth_service::{
-    domain::{Email},
-    routes::TwoFactorAuthResponse,
-    utils::constants::JWT_COOKIE_NAME,
+    domain::Email, routes::TwoFactorAuthResponse, utils::constants::JWT_COOKIE_NAME,
 };
 
+use secrecy::SecretString;
 use test_helpers::test_help;
 use uuid::Uuid;
-use secrecy::SecretString;
 
 #[test_help]
 #[tokio::test]

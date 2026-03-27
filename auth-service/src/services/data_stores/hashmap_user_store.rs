@@ -1,5 +1,5 @@
-use std::{collections::hash_map::Entry, collections::HashMap};
 use secrecy::SecretString;
+use std::{collections::hash_map::Entry, collections::HashMap};
 
 use crate::domain::{Email, User, UserStore, UserStoreError};
 #[derive(Default)]
@@ -40,7 +40,11 @@ impl UserStore for HashmapUserStore {
     // unit type `()` if the email/password passed in match an existing user, or a `UserStoreError`.
     // Return `UserStoreError::UserNotFound` if the user can not be found.
     // Return `UserStoreError::InvalidCredentials` if the password is incorrect.
-    async fn validate_user(&self, email: &Email, raw_password: &SecretString) -> Result<(), UserStoreError> {
+    async fn validate_user(
+        &self,
+        email: &Email,
+        raw_password: &SecretString,
+    ) -> Result<(), UserStoreError> {
         let u = self.get_user(email).await?;
 
         u.password_hash
@@ -52,9 +56,9 @@ impl UserStore for HashmapUserStore {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::domain::HashedPassword;
     use secrecy::SecretString;
-    use super::*;
 
     #[tokio::test]
     async fn test_add_user() {
@@ -62,7 +66,9 @@ mod tests {
 
         let user = User::new(
             Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap(),
-            HashedPassword::parse(SecretString::new("password".to_owned().into_boxed_str())).await.unwrap(),
+            HashedPassword::parse(SecretString::new("password".to_owned().into_boxed_str()))
+                .await
+                .unwrap(),
             false,
         );
         assert_eq!(store.add_user(user.clone()).await, Ok(()));
@@ -73,8 +79,10 @@ mod tests {
         );
 
         let user = User::new(
-            Email::parse(SecretString::new("not@email".to_owned().into_boxed_str()),).unwrap(),
-            HashedPassword::parse(SecretString::new("password".to_owned().into_boxed_str())).await.unwrap(),
+            Email::parse(SecretString::new("not@email".to_owned().into_boxed_str())).unwrap(),
+            HashedPassword::parse(SecretString::new("password".to_owned().into_boxed_str()))
+                .await
+                .unwrap(),
             false,
         );
         assert_eq!(store.add_user(user.clone()).await, Ok(()));
@@ -83,11 +91,15 @@ mod tests {
     #[tokio::test]
     async fn test_get_user() {
         let mut store = HashmapUserStore::default();
-        let email = Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
-        let not_used_email = Email::parse(SecretString::new("no@email".to_owned().into_boxed_str())).unwrap();
+        let email =
+            Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
+        let not_used_email =
+            Email::parse(SecretString::new("no@email".to_owned().into_boxed_str())).unwrap();
         let user = User::new(
             email.clone(),
-            HashedPassword::parse(SecretString::new("password".to_owned().into_boxed_str())).await.unwrap(),
+            HashedPassword::parse(SecretString::new("password".to_owned().into_boxed_str()))
+                .await
+                .unwrap(),
             false,
         );
         assert_eq!(store.add_user(user.clone()).await, Ok(()));
@@ -105,10 +117,12 @@ mod tests {
     #[tokio::test]
     async fn test_validate_user() {
         let mut store = HashmapUserStore::default();
-        let email = Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
+        let email =
+            Email::parse(SecretString::new("vas@email".to_owned().into_boxed_str())).unwrap();
         let raw_password = SecretString::new("password1234".to_owned().into_boxed_str());
         let wrong_pass = SecretString::new("youshallnotpass".to_owned().into_boxed_str());
-        let not_used_email = Email::parse(SecretString::new("no@email".to_owned().into_boxed_str())).unwrap();
+        let not_used_email =
+            Email::parse(SecretString::new("no@email".to_owned().into_boxed_str())).unwrap();
 
         let user = User::new(
             email.clone(),
