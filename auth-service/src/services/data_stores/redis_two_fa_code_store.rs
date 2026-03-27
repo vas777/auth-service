@@ -36,7 +36,7 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
         // The expiration time should be set to TEN_MINUTES_IN_SECONDS.
         // Return TwoFACodeStoreError::UnexpectedError if casting fails or the call to set_ex fails.
         let key = get_key(&email);
-        let value = (login_attempt_id, code);
+        let value = (login_attempt_id.as_ref(), code.as_ref());
         let svalue = serde_json::to_string(&value)
             .wrap_err("failed to serialize 2FA tuple")
             .map_err(TwoFACodeStoreError::UnexpectedError)?;

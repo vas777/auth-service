@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use redis::{Commands, Connection};
-use secrecy::{SecretString, ExposeSecret};
+use secrecy::{ExposeSecret, SecretString};
 use tokio::sync::RwLock;
 
 use crate::{
     domain::{BannedTokenStore, BannedTokenStoreError},
     utils::auth::TOKEN_TTL_SECONDS,
 };
-use color_eyre::eyre::{ Context, Result};
+use color_eyre::eyre::{Context, Result};
 
 #[derive(Clone)]
 pub struct RedisBannedTokenStore {

@@ -1,15 +1,15 @@
 use crate::{app_state::AppState, domain::AuthAPIError, utils::auth::validate_token};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use color_eyre::eyre::{Result};
+use color_eyre::eyre::Result;
+use secrecy::SecretString;
 use serde::Deserialize;
-use secrecy::{SecretString};
 
 #[tracing::instrument(name = "Verifying token", skip_all)]
 pub async fn verify_token(
     State(state): State<AppState>,
     Json(request): Json<VerifyTokenRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
-    let token = SecretString::new(request.token.into_boxed_str()); 
+    let token = SecretString::new(request.token.into_boxed_str());
     let result = state
         .banned_token_store
         .read()

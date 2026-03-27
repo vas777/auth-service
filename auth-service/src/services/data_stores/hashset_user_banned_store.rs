@@ -1,5 +1,5 @@
 use color_eyre::eyre::eyre;
-use secrecy::{SecretString, ExposeSecret} ;
+use secrecy::{ExposeSecret, SecretString};
 
 use crate::domain::{BannedTokenStore, BannedTokenStoreError};
 use std::collections::HashSet;
@@ -52,7 +52,7 @@ mod tests {
         let result = store.is_banned_token(&token).await;
         assert!(result.is_ok());
 
-        let not_banned = SecretString::new("Iamgoodtoken".to_owned().into_boxed_str()); 
+        let not_banned = SecretString::new("Iamgoodtoken".to_owned().into_boxed_str());
         let result = store.is_banned_token(&not_banned).await;
         assert!(result.is_err());
     }
