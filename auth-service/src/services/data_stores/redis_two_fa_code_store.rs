@@ -1,9 +1,7 @@
-use std::sync::Arc;
-
-use color_eyre::eyre::{self, eyre, Context};
+use color_eyre::eyre::{eyre, Context};
 use redis::{Commands, Connection};
 use secrecy::ExposeSecret;
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::domain::{Email, LoginAttemptId, TwoFACode, TwoFACodeStore, TwoFACodeStoreError};
@@ -45,7 +43,7 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
             .conn
             .write()
             .await
-            .set_ex(key, svalue, TEN_MINUTES_IN_SECONDS as u64)
+            .set_ex(key, svalue, TEN_MINUTES_IN_SECONDS)
             .wrap_err("failed to set 2FA code in Redis")
             .map_err(TwoFACodeStoreError::UnexpectedError)?;
 
@@ -57,7 +55,7 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
         // 1. Create a new key using the get_key helper function.
         // 2. Call the del command on the Redis connection to delete the 2FA code entry.
         // Return TwoFACodeStoreError::UnexpectedError if the operation fails.
-        let key = get_key(&email);
+        let key = get_key(email);
         let _: () = self
             .conn
             .write()
@@ -80,7 +78,7 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
         // Then, parse the login attempt ID string and 2FA code string into a LoginAttemptId and TwoFACode type respectively.
         // Return TwoFACodeStoreError::UnexpectedError if parsing fails.
 
-        let key = get_key(&email);
+        let key = get_key(email);
         let res: String = self
             .conn
             .write()
@@ -100,9 +98,6 @@ impl TwoFACodeStore for RedisTwoFACodeStore {
         Ok(result)
     }
 }
-
-#[derive(Serialize, Deserialize)]
-struct TwoFATuple(pub String, pub String);
 
 const TEN_MINUTES_IN_SECONDS: u64 = 600;
 const TWO_FA_CODE_PREFIX: &str = "two_fa_code:";

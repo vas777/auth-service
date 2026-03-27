@@ -44,7 +44,7 @@ pub async fn verify_2fa(
 
     let auth_cookie = match generate_auth_cookie(&email) {
         Ok(cookie) => cookie,
-        Err(e) => return (jar, Err(AuthAPIError::UnexpectedError(e.into()))),
+        Err(e) => return (jar, Err(AuthAPIError::UnexpectedError(e))),
     };
 
     let updated_jar = jar.add(auth_cookie);
@@ -57,7 +57,7 @@ pub async fn verify_2fa(
 pub struct Verify2FARequest {
     email: SecretString,
     #[serde(rename = "loginAttemptId")]
-    login_attempt_id: String,
+    login_attempt_id: SecretString,
     #[serde(rename = "2FACode")]
-    two_fa_code: String,
+    two_fa_code: SecretString,
 }
