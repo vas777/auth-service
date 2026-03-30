@@ -117,9 +117,11 @@ jobs:
         script: |
           cd ~
           export JWT_SECRET=${{ secrets.JWT_SECRET }}
+          export POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
           export DATABASE_URL=postgres://postgres:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432
           export AUTH_SERVICE_IP=${{ vars.DROPLET_IP }}
           export POSTMARK_AUTH_TOKEN=${{ secrets.POSTMARK_AUTH_TOKEN }}
+          export POSTMARK_EMAIL=${{ secrets.POSTMARK_EMAIL }}
           docker compose down
           docker compose pull
           docker compose up -d
