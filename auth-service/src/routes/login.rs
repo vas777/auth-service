@@ -78,8 +78,6 @@ async fn handle_2fa(
     // send 2FA code via the email client. Return `AuthAPIError::UnexpectedError` if the operation fails.
     if let Err(e) = state
         .email_client
-        .write()
-        .await
         .send_email(email, "2FA code", two_fa_code.as_ref())
         .await
     {

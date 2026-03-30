@@ -8,6 +8,26 @@ lazy_static! {
     pub static ref DATABASE_URL: SecretString = set_db_url();
     pub static ref JWT_SECRET: SecretString = set_token();
     pub static ref REDIS_HOST_NAME: String = set_redis_host();
+    pub static ref POSTMARK_AUTH_TOKEN: SecretString = set_postmark_auth_token();
+    pub static ref POSTMARK_EMAIL: SecretString = set_postmark_email();
+}
+
+pub(crate) fn set_postmark_email() -> SecretString {
+    dotenv().ok();
+    SecretString::new(
+        std_env::var(env::POSTMARK_EMAIL_ENV_VAR)
+            .expect("POSTMARK_EMAIL must be set.")
+            .into_boxed_str(),
+    )
+}
+
+fn set_postmark_auth_token() -> SecretString {
+    dotenv().ok();
+    SecretString::new(
+        std_env::var(env::POSTMARK_AUTH_TOKEN_ENV_VAR)
+            .expect("POSTMARK_AUTH_TOKEN must be set.")
+            .into_boxed_str(),
+    )
 }
 
 fn set_token() -> SecretString {
@@ -40,12 +60,32 @@ pub mod env {
     pub const JWT_SECRET_ENV_VAR: &str = "JWT_SECRET";
     pub const DB_URL_ENV_VAR: &str = "DATABASE_URL";
     pub const REDIS_HOST_NAME_ENV_VAR: &str = "REDIS_HOST_NAME";
+    pub const POSTMARK_AUTH_TOKEN_ENV_VAR: &str = "POSTMARK_AUTH_TOKEN";
+    pub const POSTMARK_EMAIL_ENV_VAR: &str = "POSTMARK_EMAIL";
 }
 
 pub mod prod {
     pub const APP_ADDRESS: &str = "0.0.0.0:3000";
+    use super::set_postmark_email;
+
+    pub mod email_client {
+        use secrecy::ExposeSecret;
+        use std::time::Duration;
+
+        use super::set_postmark_email;
+
+        pub const BASE_URL: &str = "https://api.postmarkapp.com";
+
+        pub const TIMEOUT: Duration = std::time::Duration::from_secs(10);
+    }
 }
 
 pub mod test {
     pub const APP_ADDRESS: &str = "127.0.0.1:0";
+    pub mod email_client {
+        use std::time::Duration;
+
+        pub const SENDER: &str = "test@email.com";
+        pub const TIMEOUT: Duration = std::time::Duration::from_millis(200);
+    }
 }

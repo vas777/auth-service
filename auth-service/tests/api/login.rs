@@ -1,8 +1,6 @@
 use crate::helpers::{get_random_email, TestApp};
 use auth_service::{
-    domain::{Email, TwoFACode},
-    routes::TwoFactorAuthResponse,
-    utils::constants::JWT_COOKIE_NAME,
+    domain::Email, routes::TwoFactorAuthResponse, utils::constants::JWT_COOKIE_NAME,
 };
 use secrecy::SecretString;
 use serde::Serialize;

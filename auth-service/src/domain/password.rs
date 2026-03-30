@@ -120,7 +120,6 @@ impl AsRef<SecretString> for HashedPassword {
 
 #[cfg(test)]
 mod tests {
-    use std::net::ToSocketAddrs;
 
     use super::HashedPassword;
     use argon2::{
