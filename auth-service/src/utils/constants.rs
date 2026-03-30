@@ -66,13 +66,9 @@ pub mod env {
 
 pub mod prod {
     pub const APP_ADDRESS: &str = "0.0.0.0:3000";
-    use super::set_postmark_email;
 
     pub mod email_client {
-        use secrecy::ExposeSecret;
         use std::time::Duration;
-
-        use super::set_postmark_email;
 
         pub const BASE_URL: &str = "https://api.postmarkapp.com";
 

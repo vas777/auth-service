@@ -5,7 +5,6 @@ use secrecy::{ExposeSecret, SecretString}; // For securely handling sensitive da
 use crate::domain::{Email, EmailClient}; // Import domain-specific modules
 
 // Define the PostmarkEmailClient struct
-#[derive(Debug)]
 pub struct PostmarkEmailClient {
     http_client: Client,               // HTTP client for making requests
     base_url: String,                  // Base URL for the email service
@@ -32,7 +31,7 @@ impl PostmarkEmailClient {
 
 #[async_trait::async_trait]
 impl EmailClient for PostmarkEmailClient {
-    #[tracing::instrument(name = "Sending email")] // Trace this function, skipping logging its parameters
+    #[tracing::instrument(name = "Sending email", skip_all)]
     async fn send_email(&self, recipient: &Email, subject: &str, content: &str) -> Result<()> {
         // Parse the base URL and join it with the email endpoint
         let base = Url::parse(&self.base_url)?;
@@ -58,24 +57,8 @@ impl EmailClient for PostmarkEmailClient {
             )
             .json(&request_body);
 
-        let result = request.build()?;
-        println!("");
-        println!("{:?}", &result);
-        println!("");
-        println!("{:?}", &result.headers());
-        println!("{:?}", &result.url());
-        if let Some(bytes) = &result.body().and_then(|b| b.as_bytes()) {
-            println!(
-                "{}",
-                std::str::from_utf8(bytes).unwrap_or("Not valid UTF-8")
-            );
-        }
-        println!("");
         // Send the request and handle the response
-
-        // result.send().await?.error_for_status()?;
-
-        self.http_client.execute(result).await?.error_for_status()?;
+        request.send().await?.error_for_status()?;
 
         Ok(())
     }

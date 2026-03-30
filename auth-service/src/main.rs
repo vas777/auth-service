@@ -13,7 +13,6 @@ use auth_service::{
     Application,
 };
 use reqwest::Client;
-use secrecy::SecretString;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -22,7 +21,6 @@ use tokio::sync::RwLock;
 async fn main() {
     color_eyre::install().expect("Failed to install color_eyre");
     init_tracing().expect("Failed to initialize tracing");
-    // pretty_env_logger::init();
 
     let pg_pool = Arc::new(RwLock::new(PostgresUserStore::new(
         configure_postgresql().await,
@@ -34,7 +32,6 @@ async fn main() {
         Arc::new(RwLock::new(RedisBannedTokenStore::new(redis.clone())));
 
     let two_fa_code_store = Arc::new(RwLock::new(RedisTwoFACodeStore::new(redis.clone())));
-    // let email_client = Arc::new(MockEmailClient);
     let email_client = Arc::new(configure_postmark_email_client());
     let app_state = AppState::new(pg_pool, banned_token_store, two_fa_code_store, email_client);
 
