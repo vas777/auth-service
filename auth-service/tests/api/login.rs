@@ -102,12 +102,21 @@ async fn should_return_401_if_incorrect_credentials() {
     // that a 401 HTTP status code is returned along with the appropriate error message.
 
     let email = String::from("mycorrect@email.com");
-    let password = String::from("mylongcorrectvalidpass");
+    let password = String::from("mylongenouhg");
+
+    let to_signup = serde_json::json!({
+        "email": email.clone(),
+        "password": password.clone(),
+        "requires2FA": false,
+    });
+    let response = app.post_signup(&to_signup).await;
+    assert_eq!(response.status().as_u16(), 201);
 
     let to_login = serde_json::json!({
         "email": email.clone(),
-        "password": password.clone(),
+        "password": "nope12341234",
     });
+
     let response = app.post_login(&to_login).await;
 
     assert_eq!(

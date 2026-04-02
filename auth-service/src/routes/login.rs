@@ -1,7 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::CookieJar;
 use color_eyre::eyre::Result;
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -16,16 +16,11 @@ pub async fn login(
     jar: CookieJar,
     Json(request): Json<LoginRequest>,
 ) -> (CookieJar, Result<impl IntoResponse, AuthAPIError>) {
-    if HashedPassword::parse(request.password.clone())
-        .await
-        .is_err()
-    {
+    let (Ok(_), Ok(email)) = (
+        (HashedPassword::parse(request.password.clone()).await),
+        (Email::parse(request.email)),
+    ) else {
         return (jar, Err(AuthAPIError::InvalidCredentials));
-    };
-
-    let email = match Email::parse(request.email) {
-        Ok(email) => email,
-        Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
 
     let user_store = &state.user_store.read().await;
